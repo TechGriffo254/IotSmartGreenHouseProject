@@ -55,15 +55,20 @@ const userSchema = new mongoose.Schema({
       type: String,
       enum: ['light', 'dark'],
       default: 'light'
+    },
+    // User-specific preferences (not greenhouse-specific)
+    defaultGreenhouseView: {
+      type: String,
+      default: 'overview'
+    },
+    autoRefreshInterval: {
+      type: Number,
+      default: 30 // seconds
     }
   }
 }, {
   timestamps: true
 });
-
-// Index for efficient queries
-userSchema.index({ email: 1 });
-userSchema.index({ username: 1 });
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {

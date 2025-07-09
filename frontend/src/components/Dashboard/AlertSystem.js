@@ -12,11 +12,24 @@ const AlertSystem = () => {
   const [filter, setFilter] = useState('all'); // all, active, resolved
   const [severityFilter, setSeverityFilter] = useState('all');
   const [alertStats, setAlertStats] = useState(null);
+  const [thresholds, setThresholds] = useState(null);
 
   useEffect(() => {
     loadAlerts();
     loadAlertStats();
+    loadThresholds();
   }, [filter, severityFilter]);
+
+  const loadThresholds = async () => {
+    try {
+      const response = await axios.get('/api/settings/greenhouse-001');
+      if (response.data.alertThresholds) {
+        setThresholds(response.data.alertThresholds);
+      }
+    } catch (error) {
+      console.error('Error loading thresholds:', error);
+    }
+  };
 
   const loadAlerts = async () => {
     try {
@@ -250,54 +263,79 @@ const AlertSystem = () => {
       {/* Alert Configuration */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Alert Configuration</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="border border-gray-200 rounded-lg p-4">
-            <h3 className="font-medium text-gray-900 mb-2">Temperature Alerts</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">High Threshold:</span>
-                <span className="font-medium">35°C</span>
+        {thresholds ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="border border-gray-200 rounded-lg p-4">
+              <h3 className="font-medium text-gray-900 mb-2">Temperature Alerts</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">High Threshold:</span>
+                  <span className="font-medium">
+                    {thresholds.temperature?.high ? `${thresholds.temperature.high}°C` : 'Not set'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Low Threshold:</span>
+                  <span className="font-medium">
+                    {thresholds.temperature?.low ? `${thresholds.temperature.low}°C` : 'Not set'}
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Low Threshold:</span>
-                <span className="font-medium">15°C</span>
+            </div>
+            
+            <div className="border border-gray-200 rounded-lg p-4">
+              <h3 className="font-medium text-gray-900 mb-2">Humidity Alerts</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">High Threshold:</span>
+                  <span className="font-medium">
+                    {thresholds.humidity?.high ? `${thresholds.humidity.high}%` : 'Not set'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Low Threshold:</span>
+                  <span className="font-medium">
+                    {thresholds.humidity?.low ? `${thresholds.humidity.low}%` : 'Not set'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="border border-gray-200 rounded-lg p-4">
+              <h3 className="font-medium text-gray-900 mb-2">Soil Moisture</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Low Threshold:</span>
+                  <span className="font-medium">
+                    {thresholds.soilMoisture?.low ? `${thresholds.soilMoisture.low}%` : 'Not set'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="border border-gray-200 rounded-lg p-4">
+              <h3 className="font-medium text-gray-900 mb-2">Light Level</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Low Threshold:</span>
+                  <span className="font-medium">
+                    {thresholds.lightLevel?.low ? `${thresholds.lightLevel.low} lux` : 'Not set'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-          
-          <div className="border border-gray-200 rounded-lg p-4">
-            <h3 className="font-medium text-gray-900 mb-2">Humidity Alerts</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">High Threshold:</span>
-                <span className="font-medium">80%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Low Threshold:</span>
-                <span className="font-medium">40%</span>
-              </div>
-            </div>
+        ) : (
+          <div className="flex justify-center py-8">
+            <div className="text-gray-500">Loading thresholds...</div>
           </div>
-          
-          <div className="border border-gray-200 rounded-lg p-4">
-            <h3 className="font-medium text-gray-900 mb-2">Soil Moisture</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Low Threshold:</span>
-                <span className="font-medium">30%</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="border border-gray-200 rounded-lg p-4">
-            <h3 className="font-medium text-gray-900 mb-2">Light Level</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Low Threshold:</span>
-                <span className="font-medium">200 lux</span>
-              </div>
-            </div>
-          </div>
+        )}
+        
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <p className="text-sm text-gray-600">
+            Configure alert thresholds in the <a href="#" className="text-blue-600 hover:text-blue-800">Settings</a> page. 
+            Alerts will be triggered when sensor readings exceed these values.
+          </p>
         </div>
       </div>
     </div>

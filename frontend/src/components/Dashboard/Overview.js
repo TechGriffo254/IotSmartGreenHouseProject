@@ -1,20 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { useSocket } from '../../context/SocketContext';
+import { useAuth } from '../../context/AuthContext';
 import SensorCard from '../Sensors/SensorCard';
 import DeviceCard from '../Devices/DeviceCard';
 import AlertPanel from '../Alerts/AlertPanel';
 import QuickStats from '../common/QuickStats';
 import { Thermometer, Droplets, Sun, Sprout, Zap, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
+import apiService from '../../utils/api';
 
 const Overview = () => {
   const { sensorData, devices, alerts, connected } = useSocket();
+  const { user } = useAuth();
+  const [thresholds, setThresholds] = useState(null);
   const [stats, setStats] = useState({
     totalDevices: 0,
     activeDevices: 0,
     totalAlerts: 0,
     criticalAlerts: 0
   });
+
+  useEffect(() => {
+    loadThresholds();
+  }, []);
 
   useEffect(() => {
     // Update stats when data changes
@@ -32,6 +40,55 @@ const Overview = () => {
       criticalAlerts
     });
   }, [devices, alerts]);
+
+  const loadThresholds = async () => {
+    try {
+      const greenhouseId = user?.greenhouseAccess?.[0]?.greenhouseId || 'default';
+      const response = await apiService.getSettings(greenhouseId);
+      setThresholds(response.data.alertThresholds);
+    } catch (error) {
+      console.error('Error loading thresholds:', error);
+    }
+  };
+
+  // Helper function to check if a value is within threshold range
+  const isValueOptimal = (sensorType, field, value) => {
+    if (!thresholds) return true; // Default to optimal if no thresholds loaded
+    
+    const threshold = thresholds[sensorType];
+    if (!threshold) return true;
+
+    // Check based on available thresholds
+    if (field === 'temperature') {
+      const hasHigh = threshold.high !== null;
+      const hasLow = threshold.low !== null;
+      
+      if (hasHigh && hasLow) {
+        return value >= threshold.low && value <= threshold.high;
+      } else if (hasHigh) {
+        return value <= threshold.high;
+      } else if (hasLow) {
+        return value >= threshold.low;
+      }
+    } else if (field === 'humidity') {
+      const hasHigh = threshold.high !== null;
+      const hasLow = threshold.low !== null;
+      
+      if (hasHigh && hasLow) {
+        return value >= threshold.low && value <= threshold.high;
+      } else if (hasHigh) {
+        return value <= threshold.high;
+      } else if (hasLow) {
+        return value >= threshold.low;
+      }
+    } else if (field === 'lightIntensity' && thresholds.lightLevel?.low !== null) {
+      return value >= thresholds.lightLevel.low;
+    } else if (field === 'soilMoisture' && thresholds.soilMoisture?.low !== null) {
+      return value >= thresholds.soilMoisture.low;
+    }
+    
+    return true; // Default to optimal if no specific threshold
+  };
 
   const getSensorValue = (sensorType, field) => {
     return sensorData[sensorType]?.[field] || 0;
@@ -171,7 +228,7 @@ const Overview = () => {
               {getSensorValue('DHT11', 'temperature').toFixed(1)}°C
             </p>
             <p className="text-xs text-gray-500">
-              {getSensorValue('DHT11', 'temperature') >= 15 && getSensorValue('DHT11', 'temperature') <= 35 
+              {isValueOptimal('temperature', 'temperature', getSensorValue('DHT11', 'temperature'))
                 ? 'Optimal' : 'Needs Attention'}
             </p>
           </div>
@@ -183,7 +240,7 @@ const Overview = () => {
               {getSensorValue('DHT11', 'humidity').toFixed(1)}%
             </p>
             <p className="text-xs text-gray-500">
-              {getSensorValue('DHT11', 'humidity') >= 40 && getSensorValue('DHT11', 'humidity') <= 80 
+              {isValueOptimal('humidity', 'humidity', getSensorValue('DHT11', 'humidity'))
                 ? 'Optimal' : 'Needs Attention'}
             </p>
           </div>
@@ -195,7 +252,8 @@ const Overview = () => {
               {getSensorValue('LDR', 'lightIntensity').toFixed(0)}
             </p>
             <p className="text-xs text-gray-500">
-              {getSensorValue('LDR', 'lightIntensity') >= 200 ? 'Sufficient' : 'Low Light'}
+              {isValueOptimal('lightLevel', 'lightIntensity', getSensorValue('LDR', 'lightIntensity'))
+                ? 'Sufficient' : 'Low Light'}
             </p>
           </div>
           

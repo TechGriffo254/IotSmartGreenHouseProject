@@ -239,10 +239,12 @@ app.use((err, req, res, next) => {
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: '🌱 Smart Greenhouse IoT API',
+    message: '🌱 Smart Greenhouse IoT API - Successfully Deployed!',
     version: '1.0.0',
     status: 'Running',
+    environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
     endpoints: {
       health: '/api/health',
       sensors: '/api/sensors',
@@ -252,7 +254,8 @@ app.get('/', (req, res) => {
       auth: '/api/auth',
       settings: '/api/settings'
     },
-    documentation: 'https://github.com/TechGriffo254/IotSmartGreenHouseProject'
+    documentation: 'https://github.com/TechGriffo254/IotSmartGreenHouseProject',
+    deployment: 'Koyeb Cloud Platform'
   });
 });
 

@@ -1214,9 +1214,9 @@ async function checkThresholds(sensorData, io) {
           message: `Temperature is too high: ${temperature}°C`,
           severity: 'HIGH',
           greenhouseId,
-          sensorType: 'TEMPERATURE',
+          sensorType: 'DHT11',
           currentValue: temperature,
-          threshold: process.env.ALERT_THRESHOLD_TEMP_HIGH || 35
+          thresholdValue: process.env.ALERT_THRESHOLD_TEMP_HIGH || 35
         });
       } else if (temperature < (process.env.ALERT_THRESHOLD_TEMP_LOW || 15)) {
         alerts.push({
@@ -1224,9 +1224,9 @@ async function checkThresholds(sensorData, io) {
           message: `Temperature is too low: ${temperature}°C`,
           severity: 'MEDIUM',
           greenhouseId,
-          sensorType: 'TEMPERATURE',
+          sensorType: 'DHT11',
           currentValue: temperature,
-          threshold: process.env.ALERT_THRESHOLD_TEMP_LOW || 15
+          thresholdValue: process.env.ALERT_THRESHOLD_TEMP_LOW || 15
         });
       }
     }
@@ -1239,9 +1239,9 @@ async function checkThresholds(sensorData, io) {
           message: `Humidity is too high: ${humidity}%`,
           severity: 'MEDIUM',
           greenhouseId,
-          sensorType: 'HUMIDITY',
+          sensorType: 'DHT11',
           currentValue: humidity,
-          threshold: process.env.ALERT_THRESHOLD_HUMIDITY_HIGH || 80
+          thresholdValue: process.env.ALERT_THRESHOLD_HUMIDITY_HIGH || 80
         });
       } else if (humidity < (process.env.ALERT_THRESHOLD_HUMIDITY_LOW || 40)) {
         alerts.push({
@@ -1249,9 +1249,9 @@ async function checkThresholds(sensorData, io) {
           message: `Humidity is too low: ${humidity}%`,
           severity: 'MEDIUM',
           greenhouseId,
-          sensorType: 'HUMIDITY',
+          sensorType: 'DHT11',
           currentValue: humidity,
-          threshold: process.env.ALERT_THRESHOLD_HUMIDITY_LOW || 40
+          thresholdValue: process.env.ALERT_THRESHOLD_HUMIDITY_LOW || 40
         });
       }
     }
@@ -1266,7 +1266,7 @@ async function checkThresholds(sensorData, io) {
           greenhouseId,
           sensorType: 'SOIL_MOISTURE',
           currentValue: soilMoisture,
-          threshold: process.env.ALERT_THRESHOLD_SOIL_MOISTURE_LOW || 300
+          thresholdValue: process.env.ALERT_THRESHOLD_SOIL_MOISTURE_LOW || 300
         });
       }
     }
@@ -1275,13 +1275,13 @@ async function checkThresholds(sensorData, io) {
     if (lightIntensity !== undefined && !isNaN(lightIntensity)) {
       if (lightIntensity < (process.env.ALERT_THRESHOLD_LIGHT_LOW || 200)) {
         alerts.push({
-          alertType: 'LIGHT_LOW',
+          alertType: 'LIGHT_LEVEL_LOW',
           message: `Light level is low: ${lightIntensity} lux`,
           severity: 'LOW',
           greenhouseId,
-          sensorType: 'LIGHT',
+          sensorType: 'LDR',
           currentValue: lightIntensity,
-          threshold: process.env.ALERT_THRESHOLD_LIGHT_LOW || 200
+          thresholdValue: process.env.ALERT_THRESHOLD_LIGHT_LOW || 200
         });
       }
     }

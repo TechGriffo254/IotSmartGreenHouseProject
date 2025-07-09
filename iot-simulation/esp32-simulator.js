@@ -186,10 +186,12 @@ class ESP32Simulator {
         try {
             await this.checkCommands();
             const data = this.generateAllSensorData();
+            
+            console.log(`[${this.deviceId}] Generated data:`, JSON.stringify(data, null, 2));
+            
             await this.sendData(data);
             
-            console.log(`[${this.deviceId}] Sensors:`, data.sensors);
-            console.log(`[${this.deviceId}] Devices:`, data.devices);
+            console.log(`[${this.deviceId}] Data sent successfully`);
             
         } catch (error) {
             console.error(`[${this.deviceId}] Error in run loop:`, error.message);

@@ -20,7 +20,7 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: process.env.NODE_ENV === 'production' 
-      ? ["https://your-koyeb-app-name.koyeb.app", "https://localhost:3000", "http://localhost:3000"]
+      ? ["https://open-lauryn-ina-9662925b.koyeb.app", "https://localhost:3000", "http://localhost:3000", "*"]
       : ["http://localhost:3000"],
     methods: ["GET", "POST"],
     credentials: true
@@ -35,7 +35,7 @@ const io = socketIo(server, {
 app.use(helmet());
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-koyeb-app-name.koyeb.app', 'https://localhost:3000', 'http://localhost:3000'] 
+    ? ['https://open-lauryn-ina-9662925b.koyeb.app', 'https://localhost:3000', 'http://localhost:3000', '*'] 
     : ['http://localhost:3000'],
   credentials: true
 }));

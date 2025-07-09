@@ -5,7 +5,7 @@ require('dotenv').config();
 class GreenhouseSimulator {
     constructor() {
         this.deviceId = process.env.DEVICE_ID || 'greenhouse_001';
-        this.backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+        this.backendUrl = process.env.BACKEND_URL || 'https://open-lauryn-ina-9662925b.koyeb.app';
         this.interval = parseInt(process.env.SIMULATION_INTERVAL) || 5000;
         this.debug = process.env.DEBUG === 'true';
         

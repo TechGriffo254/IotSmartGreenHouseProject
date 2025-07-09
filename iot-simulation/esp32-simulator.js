@@ -11,7 +11,7 @@ class ESP32Simulator {
         this.location = deviceConfig.location;
         this.sensorTypes = deviceConfig.sensors;
         this.deviceTypes = deviceConfig.devices;
-        this.backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+        this.backendUrl = process.env.BACKEND_URL || 'https://open-lauryn-ina-9662925b.koyeb.app';
         this.interval = deviceConfig.interval || 10000;
         
         // Initialize sensor states

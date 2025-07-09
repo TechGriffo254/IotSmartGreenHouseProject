@@ -25,7 +25,7 @@ export const SocketProvider = ({ children }) => {
     if (isAuthenticated && user && localStorage.getItem('token') && !socket) {
       console.log('🔌 Creating socket connection for user:', user.username);
       
-      const newSocket = io('http://localhost:5000', {
+      const newSocket = io('https://open-lauryn-ina-9662925b.koyeb.app', {
         auth: {
           token: localStorage.getItem('token')
         },

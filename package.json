@@ -4,12 +4,10 @@
   "description": "Smart Greenhouse IoT System - Full Stack Application",
   "main": "backend/server.js",
   "scripts": {
-    "start": "cd backend && npm start",
-    "build": "cd backend && npm install --production",
-    "install-backend": "cd backend && npm install",
-    "install-frontend": "cd frontend && npm install",
-    "dev": "cd backend && npm run dev",
-    "postinstall": "npm run install-backend"
+    "start": "cd backend && node server.js",
+    "build": "cd backend && npm ci --only=production",
+    "install-deps": "cd backend && npm install",
+    "dev": "cd backend && npm run dev"
   },
   "keywords": ["iot", "greenhouse", "express", "mongodb", "sensors", "react"],
   "author": "TechGriffo254",

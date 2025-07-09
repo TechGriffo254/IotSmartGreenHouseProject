@@ -235,6 +235,27 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Root endpoint - API welcome
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: '🌱 Smart Greenhouse IoT API',
+    version: '1.0.0',
+    status: 'Running',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/api/health',
+      sensors: '/api/sensors',
+      devices: '/api/devices',
+      alerts: '/api/alerts',
+      iot: '/api/iot',
+      auth: '/api/auth',
+      settings: '/api/settings'
+    },
+    documentation: 'https://github.com/TechGriffo254/IotSmartGreenHouseProject'
+  });
+});
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({

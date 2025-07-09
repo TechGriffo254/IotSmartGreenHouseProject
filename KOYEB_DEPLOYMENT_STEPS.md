@@ -43,11 +43,11 @@ ALERT_THRESHOLD_LIGHT_LOW=200
    - Branch: `master`
 
 3. **Configure Build**:
-   - Build command: `cd backend && npm install`
-   - Run command: `cd backend && node server.js`
+   - Build command: `npm install`
+   - Run command: `npm start`
    - Port: `8080` (Koyeb will set PORT env var)
    
-   > **Note:** We need to explicitly install backend dependencies and run the server directly.
+   > **Note:** Backend files are now at the root level for direct deployment.
 
 4. **Set Environment Variables**:
    ```

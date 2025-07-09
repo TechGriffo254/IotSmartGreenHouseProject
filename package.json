@@ -1,0 +1,25 @@
+{
+  "name": "iot-smart-greenhouse",
+  "version": "1.0.0",
+  "description": "Smart Greenhouse IoT System - Full Stack Application",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "cd backend && npm start",
+    "build": "cd backend && npm install --production",
+    "install-backend": "cd backend && npm install",
+    "install-frontend": "cd frontend && npm install",
+    "dev": "cd backend && npm run dev",
+    "postinstall": "npm run install-backend"
+  },
+  "keywords": ["iot", "greenhouse", "express", "mongodb", "sensors", "react"],
+  "author": "TechGriffo254",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TechGriffo254/IotSmartGreenHouseProject.git"
+  }
+}

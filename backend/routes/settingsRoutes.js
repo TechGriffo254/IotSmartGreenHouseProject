@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/:greenhouseId', auth, async (req, res) => {
   try {
     const { greenhouseId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.userId; // Use userId instead of id
 
     let settings = await Settings.findOne({ userId, greenhouseId });
     
@@ -37,7 +37,7 @@ router.get('/:greenhouseId', auth, async (req, res) => {
 router.put('/:greenhouseId/thresholds', auth, async (req, res) => {
   try {
     const { greenhouseId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.userId; // Use userId instead of id
     const { alertThresholds } = req.body;
 
     const settings = await Settings.findOneAndUpdate(
@@ -69,7 +69,7 @@ router.put('/:greenhouseId/thresholds', auth, async (req, res) => {
 router.put('/:greenhouseId/system', auth, async (req, res) => {
   try {
     const { greenhouseId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.userId; // Use userId instead of id
     const { systemSettings } = req.body;
 
     const settings = await Settings.findOneAndUpdate(
@@ -101,7 +101,7 @@ router.put('/:greenhouseId/system', auth, async (req, res) => {
 router.put('/:greenhouseId/devices', auth, async (req, res) => {
   try {
     const { greenhouseId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.userId; // Use userId instead of id
     const { deviceSettings } = req.body;
 
     const settings = await Settings.findOneAndUpdate(
@@ -133,7 +133,7 @@ router.put('/:greenhouseId/devices', auth, async (req, res) => {
 router.post('/:greenhouseId/reset', auth, async (req, res) => {
   try {
     const { greenhouseId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.userId; // Use userId instead of id
 
     const defaultSettings = {
       userId,

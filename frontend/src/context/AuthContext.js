@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
@@ -17,13 +17,9 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(localStorage.getItem('token'));
 
-  // Configure axios defaults
+  // Configure api defaults - no longer needed as api service handles this
   useEffect(() => {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } else {
-      delete axios.defaults.headers.common['Authorization'];
-    }
+    // The api service handles authorization headers automatically
   }, [token]);
 
   // Check if user is authenticated on mount
@@ -31,7 +27,7 @@ export const AuthProvider = ({ children }) => {
     const checkAuth = async () => {
       if (token) {
         try {
-          const response = await axios.get('/api/auth/me');
+          const response = await api.get('/auth/me');
           setUser(response.data.data);
         } catch (error) {
           console.error('Auth check failed:', error);
@@ -48,7 +44,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
-      const response = await axios.post('/api/auth/login', credentials);
+      const response = await api.post('/auth/login', credentials);
       const { token: newToken, user: userData } = response.data;
       
       localStorage.setItem('token', newToken);
@@ -66,7 +62,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const response = await axios.post('/api/auth/register', userData);
+      const response = await api.post('/auth/register', userData);
       const { token: newToken, user: newUser } = response.data;
       
       localStorage.setItem('token', newToken);
@@ -86,13 +82,12 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
-    delete axios.defaults.headers.common['Authorization'];
     toast.success('Logged out successfully');
   };
 
   const updateProfile = async (profileData) => {
     try {
-      const response = await axios.put('/api/auth/profile', profileData);
+      const response = await api.put('/auth/profile', profileData);
       setUser(response.data.data);
       toast.success('Profile updated successfully');
       return { success: true };
@@ -103,6 +98,35 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const changePassword = async (passwordData) => {
+    try {
+      await api.put('/auth/password', passwordData);
+      toast.success('Password updated successfully');
+      return { success: true };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Password change failed';
+      toast.error(message);
+      return { success: false, message };
+    }
+  };
+
+  const refreshToken = async () => {
+    try {
+      const response = await api.post('/auth/refresh');
+      const { token: newToken, user: userData } = response.data;
+      
+      localStorage.setItem('token', newToken);
+      setToken(newToken);
+      setUser(userData);
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      logout();
+      return { success: false };
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -110,6 +134,8 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     updateProfile,
+    changePassword,
+    refreshToken,
     isAuthenticated: !!user
   };
 

@@ -23,100 +23,113 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      // Initialize socket connection
-      const newSocket = io('http://localhost:5000', {
-        auth: {
-          token: localStorage.getItem('token')
-        }
-      });
+      // Only create socket if it doesn't exist
+      if (!socket) {
+        // Initialize socket connection
+        const newSocket = io('http://localhost:5000', {
+          auth: {
+            token: localStorage.getItem('token')
+          }
+        });
 
-      newSocket.on('connect', () => {
-        console.log('Connected to server');
-        setConnected(true);
-        // Join greenhouse room
-        newSocket.emit('join-greenhouse', 'greenhouse-001');
-        toast.success('Connected to greenhouse system');
-      });
+        newSocket.on('connect', () => {
+          console.log('Connected to server');
+          setConnected(true);
+          // Join greenhouse room
+          newSocket.emit('join-greenhouse', 'greenhouse-001');
+          toast.success('Connected to greenhouse system');
+        });
 
-      newSocket.on('disconnect', () => {
-        console.log('Disconnected from server');
-        setConnected(false);
-        toast.error('Disconnected from greenhouse system');
-      });
+        newSocket.on('disconnect', (reason) => {
+          console.log('Disconnected from server:', reason);
+          setConnected(false);
+          // Only show error toast for unexpected disconnections
+          if (reason !== 'io client disconnect') {
+            toast.error('Disconnected from greenhouse system');
+          }
+        });
 
-      // Listen for sensor updates
-      newSocket.on('sensorUpdate', (data) => {
-        setSensorData(prevData => ({
-          ...prevData,
-          [data.sensorType]: data
-        }));
-      });
+        // Listen for sensor updates
+        newSocket.on('sensorUpdate', (data) => {
+          setSensorData(prevData => ({
+            ...prevData,
+            [data.sensorType]: data
+          }));
+        });
 
-      // Listen for new alerts
-      newSocket.on('newAlert', (alert) => {
-        setAlerts(prevAlerts => [alert, ...prevAlerts]);
-        
-        // Show toast notification based on severity
-        const message = `${alert.alertType.replace('_', ' ')}: ${alert.message}`;
-        
-        switch (alert.severity) {
-          case 'CRITICAL':
-            toast.error(message, { duration: 8000 });
-            break;
-          case 'HIGH':
-            toast.error(message, { duration: 6000 });
-            break;
-          case 'MEDIUM':
-            toast((t) => (
-              <div className="flex items-center">
-                <div className="mr-2">⚠️</div>
-                <div>{message}</div>
-              </div>
-            ), { duration: 4000 });
-            break;
-          default:
-            toast(message, { duration: 3000 });
-        }
-      });
+        // Listen for new alerts
+        newSocket.on('newAlert', (alert) => {
+          setAlerts(prevAlerts => [alert, ...prevAlerts]);
+          
+          // Show toast notification based on severity
+          const message = `${alert.alertType.replace('_', ' ')}: ${alert.message}`;
+          
+          switch (alert.severity) {
+            case 'CRITICAL':
+              toast.error(message, { duration: 8000 });
+              break;
+            case 'HIGH':
+              toast.error(message, { duration: 6000 });
+              break;
+            case 'MEDIUM':
+              toast((t) => (
+                <div className="flex items-center">
+                  <div className="mr-2">⚠️</div>
+                  <div>{message}</div>
+                </div>
+              ), { duration: 4000 });
+              break;
+            default:
+              toast(message, { duration: 3000 });
+          }
+        });
 
-      // Listen for alert resolution
-      newSocket.on('alertResolved', (alert) => {
-        setAlerts(prevAlerts => 
-          prevAlerts.map(a => a._id === alert._id ? alert : a)
-        );
-        toast.success(`Alert resolved: ${alert.alertType.replace('_', ' ')}`);
-      });
+        // Listen for alert resolution
+        newSocket.on('alertResolved', (alert) => {
+          setAlerts(prevAlerts => 
+            prevAlerts.map(a => a._id === alert._id ? alert : a)
+          );
+          toast.success(`Alert resolved: ${alert.alertType.replace('_', ' ')}`);
+        });
 
-      // Listen for device updates
-      newSocket.on('deviceUpdate', (device) => {
-        setDevices(prevDevices => 
-          prevDevices.map(d => d.deviceId === device.deviceId ? device : d)
-        );
-      });
+        // Listen for device updates
+        newSocket.on('deviceUpdate', (device) => {
+          setDevices(prevDevices => 
+            prevDevices.map(d => d.deviceId === device.deviceId ? device : d)
+          );
+        });
 
-      // Listen for device additions
-      newSocket.on('deviceAdded', (device) => {
-        setDevices(prevDevices => [...prevDevices, device]);
-        toast.success(`New device added: ${device.deviceName}`);
-      });
+        // Listen for device additions
+        newSocket.on('deviceAdded', (device) => {
+          setDevices(prevDevices => [...prevDevices, device]);
+          toast.success(`New device added: ${device.deviceName}`);
+        });
 
-      // Listen for device removal
-      newSocket.on('deviceRemoved', ({ deviceId }) => {
-        setDevices(prevDevices => 
-          prevDevices.filter(d => d.deviceId !== deviceId)
-        );
-        toast.success('Device removed');
-      });
+        // Listen for device removal
+        newSocket.on('deviceRemoved', ({ deviceId }) => {
+          setDevices(prevDevices => 
+            prevDevices.filter(d => d.deviceId !== deviceId)
+          );
+          toast.success('Device removed');
+        });
 
-      setSocket(newSocket);
+        setSocket(newSocket);
 
-      return () => {
-        newSocket.close();
+        return () => {
+          newSocket.close();
+          setSocket(null);
+          setConnected(false);
+        };
+      }
+    } else {
+      // Cleanup socket if user is not authenticated
+      if (socket) {
+        socket.close();
         setSocket(null);
         setConnected(false);
-      };
+      }
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, socket]);
 
   const emitDeviceControl = (deviceId, action, payload = {}) => {
     if (socket && connected) {

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useSocket } from '../../context/SocketContext';
-import DeviceCard from './DeviceCard';
-import AddDeviceModal from './AddDeviceModal';
-import DeviceAutomationModal from './DeviceAutomationModal';
+import DeviceCard from '../Devices/DeviceCard';
+import AddDeviceModal from '../Devices/AddDeviceModal';
+import DeviceAutomationModal from '../Devices/DeviceAutomationModal';
 import { Plus, Zap, Power, Settings, BarChart3 } from 'lucide-react';
 import axios from 'axios';
 
@@ -26,17 +26,6 @@ const DeviceControl = () => {
     } catch (error) {
       console.error('Error loading device stats:', error);
     }
-  };
-
-  const getDevicesByType = () => {
-    const grouped = {};
-    devices.forEach(device => {
-      if (!grouped[device.deviceType]) {
-        grouped[device.deviceType] = [];
-      }
-      grouped[device.deviceType].push(device);
-    });
-    return grouped;
   };
 
   const deviceTypes = [

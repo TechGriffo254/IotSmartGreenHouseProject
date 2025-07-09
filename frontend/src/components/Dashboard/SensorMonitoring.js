@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSocket } from '../../context/SocketContext';
-import SensorCard from './SensorCard';
-import SensorChart from './SensorChart';
+import SensorCard from '../Sensors/SensorCard';
+import SensorChart from '../Sensors/SensorChart';
 import { Thermometer, Droplets, Sun, Sprout, RefreshCw, Calendar } from 'lucide-react';
 import axios from 'axios';
 
@@ -36,11 +36,7 @@ const SensorMonitoring = () => {
     }
   ];
 
-  useEffect(() => {
-    loadHistoricalData();
-  }, [timeRange, selectedSensor]);
-
-  const loadHistoricalData = async () => {
+  const loadHistoricalData = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -60,7 +56,11 @@ const SensorMonitoring = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeRange, selectedSensor]);
+
+  useEffect(() => {
+    loadHistoricalData();
+  }, [loadHistoricalData]);
 
   const getSensorValue = (sensorType, field) => {
     return sensorData[sensorType]?.[field] || 0;

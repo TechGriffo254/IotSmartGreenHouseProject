@@ -16,6 +16,7 @@ const alertSchema = new mongoose.Schema({
       'HUMIDITY_LOW',
       'SOIL_MOISTURE_LOW',
       'LIGHT_LEVEL_LOW',
+      'WATER_LEVEL_LOW',
       'DEVICE_MALFUNCTION',
       'POWER_CONSUMPTION_HIGH',
       'SENSOR_OFFLINE'
@@ -40,7 +41,7 @@ const alertSchema = new mongoose.Schema({
   },
   sensorType: {
     type: String,
-    enum: ['DHT11', 'LDR', 'SOIL_MOISTURE', 'DEVICE'],
+    enum: ['DHT11', 'LDR', 'SOIL_MOISTURE', 'ULTRASONIC', 'DEVICE'],
     required: true
   },
   isResolved: {

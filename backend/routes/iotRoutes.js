@@ -452,56 +452,84 @@ async function checkComprehensiveThresholds(sensors, greenhouseId, deviceId, io)
 
   // Temperature thresholds
   if (sensors.temperature !== undefined) {
-    if (sensors.temperature > process.env.ALERT_THRESHOLD_TEMP_HIGH || 35) {
+    const tempHigh = process.env.ALERT_THRESHOLD_TEMP_HIGH || 35;
+    const tempLow = process.env.ALERT_THRESHOLD_TEMP_LOW || 15;
+    
+    if (sensors.temperature > tempHigh) {
       alerts.push({
         alertType: 'TEMPERATURE_HIGH',
         severity: sensors.temperature > 40 ? 'CRITICAL' : 'HIGH',
-        message: `Temperature too high: ${sensors.temperature}°C`
+        message: `Temperature too high: ${sensors.temperature}°C`,
+        currentValue: sensors.temperature,
+        thresholdValue: tempHigh,
+        sensorType: 'DHT11'
       });
-    } else if (sensors.temperature < (process.env.ALERT_THRESHOLD_TEMP_LOW || 15)) {
+    } else if (sensors.temperature < tempLow) {
       alerts.push({
         alertType: 'TEMPERATURE_LOW',
         severity: 'MEDIUM',
-        message: `Temperature too low: ${sensors.temperature}°C`
+        message: `Temperature too low: ${sensors.temperature}°C`,
+        currentValue: sensors.temperature,
+        thresholdValue: tempLow,
+        sensorType: 'DHT11'
       });
     }
   }
 
   // Humidity thresholds
   if (sensors.humidity !== undefined) {
-    if (sensors.humidity > (process.env.ALERT_THRESHOLD_HUMIDITY_HIGH || 80)) {
+    const humidityHigh = process.env.ALERT_THRESHOLD_HUMIDITY_HIGH || 80;
+    const humidityLow = process.env.ALERT_THRESHOLD_HUMIDITY_LOW || 40;
+    
+    if (sensors.humidity > humidityHigh) {
       alerts.push({
         alertType: 'HUMIDITY_HIGH',
         severity: 'MEDIUM',
-        message: `Humidity too high: ${sensors.humidity}%`
+        message: `Humidity too high: ${sensors.humidity}%`,
+        currentValue: sensors.humidity,
+        thresholdValue: humidityHigh,
+        sensorType: 'DHT11'
       });
-    } else if (sensors.humidity < (process.env.ALERT_THRESHOLD_HUMIDITY_LOW || 40)) {
+    } else if (sensors.humidity < humidityLow) {
       alerts.push({
         alertType: 'HUMIDITY_LOW',
         severity: 'MEDIUM',
-        message: `Humidity too low: ${sensors.humidity}%`
+        message: `Humidity too low: ${sensors.humidity}%`,
+        currentValue: sensors.humidity,
+        thresholdValue: humidityLow,
+        sensorType: 'DHT11'
       });
     }
   }
 
   // Soil moisture thresholds
   if (sensors.soilMoisture !== undefined) {
-    if (sensors.soilMoisture < (process.env.ALERT_THRESHOLD_SOIL_MOISTURE_LOW || 30)) {
+    const moistureLow = process.env.ALERT_THRESHOLD_SOIL_MOISTURE_LOW || 500;
+    
+    if (sensors.soilMoisture < moistureLow) {
       alerts.push({
         alertType: 'SOIL_MOISTURE_LOW',
         severity: 'HIGH',
-        message: `Soil moisture low: ${sensors.soilMoisture}`
+        message: `Soil moisture low: ${sensors.soilMoisture}`,
+        currentValue: sensors.soilMoisture,
+        thresholdValue: moistureLow,
+        sensorType: 'SOIL_MOISTURE'
       });
     }
   }
 
   // Light level thresholds
   if (sensors.lightLevel !== undefined) {
-    if (sensors.lightLevel < (process.env.ALERT_THRESHOLD_LIGHT_LOW || 200)) {
+    const lightLow = process.env.ALERT_THRESHOLD_LIGHT_LOW || 200;
+    
+    if (sensors.lightLevel < lightLow) {
       alerts.push({
-        alertType: 'LIGHT_LOW',
+        alertType: 'LIGHT_LEVEL_LOW',
         severity: 'LOW',
-        message: `Light level low: ${sensors.lightLevel}`
+        message: `Light level low: ${sensors.lightLevel}`,
+        currentValue: sensors.lightLevel,
+        thresholdValue: lightLow,
+        sensorType: 'LDR'
       });
     }
   }
@@ -511,7 +539,10 @@ async function checkComprehensiveThresholds(sensors, greenhouseId, deviceId, io)
     alerts.push({
       alertType: 'WATER_LEVEL_LOW',
       severity: 'CRITICAL',
-      message: `Water level critical: ${sensors.waterLevel}cm`
+      message: `Water level critical: ${sensors.waterLevel}cm`,
+      currentValue: sensors.waterLevel,
+      thresholdValue: 10,
+      sensorType: 'ULTRASONIC'
     });
   }
 

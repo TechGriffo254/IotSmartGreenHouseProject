@@ -155,6 +155,36 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Handle device control commands from frontend
+  socket.on('device-control', async (data) => {
+    try {
+      const { deviceId, action, greenhouseId } = data;
+      console.log(`🎛️ Device control command from ${socket.username}: ${deviceId} -> ${action}`);
+      
+      // Broadcast to ESP32 devices in the same greenhouse
+      socket.to(`greenhouse-${greenhouseId}`).emit('deviceControl', {
+        type: 'deviceControl',
+        deviceId,
+        action,
+        userId: socket.userId,
+        username: socket.username,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Also broadcast to other frontend clients
+      socket.to(`greenhouse-${greenhouseId}`).emit('device-control-update', {
+        deviceId,
+        action,
+        user: socket.username,
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (error) {
+      console.error('Device control error:', error);
+      socket.emit('error', { message: 'Device control failed', error: error.message });
+    }
+  });
+
   socket.on('disconnect', (reason) => {
     console.log(`Client disconnected: ${socket.id} (${socket.username}) - Reason: ${reason}`);
   });

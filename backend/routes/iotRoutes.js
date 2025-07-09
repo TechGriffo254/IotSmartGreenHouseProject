@@ -4,63 +4,189 @@ const SensorData = require('../models/SensorData');
 const DeviceControl = require('../models/DeviceControl');
 const Alert = require('../models/Alert');
 
-// POST /api/iot/sensor-data - Simplified endpoint for IoT devices to send sensor data
-router.post('/sensor-data', async (req, res) => {
+// POST /api/iot - Main endpoint for ESP32 to send combined sensor data
+router.post('/', async (req, res) => {
   try {
     const { 
-      deviceId, 
-      sensorType, 
-      temperature, 
-      humidity, 
-      lightIntensity, 
-      soilMoisture,
+      deviceId,
       greenhouseId = 'greenhouse-001',
-      location = 'Main Greenhouse'
+      pincode,
+      temperature,
+      humidity,
+      soilMoisture,
+      lightIntensity,
+      waterLevel,
+      timestamp
     } = req.body;
 
+    console.log('📡 ESP32 data received from device:', deviceId);
+    console.log('📊 Raw sensor data:', { temperature, humidity, soilMoisture, lightIntensity, waterLevel });
+
     // Validate required fields
-    if (!deviceId || !sensorType) {
+    if (!deviceId) {
       return res.status(400).json({
         success: false,
-        message: 'deviceId and sensorType are required'
+        message: 'deviceId is required'
       });
     }
 
-    // Create sensor data object
-    const sensorData = new SensorData({
-      greenhouseId,
-      sensorType,
-      deviceId,
-      location,
-      temperature: sensorType === 'DHT11' ? temperature : undefined,
-      humidity: sensorType === 'DHT11' ? humidity : undefined,
-      lightIntensity: sensorType === 'LDR' ? lightIntensity : undefined,
-      soilMoisture: sensorType === 'SOIL_MOISTURE' ? soilMoisture : undefined,
-      timestamp: new Date()
-    });
-
-    await sensorData.save();
-
-    // Emit real-time data via Socket.IO if available
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`greenhouse-${sensorData.greenhouseId}`).emit('sensorUpdate', sensorData);
+    // Optional: Validate pincode for additional security
+    if (pincode && pincode !== process.env.ESP32_PINCODE && pincode !== '123456') {
+      console.log('⚠️ Invalid pincode from ESP32:', pincode);
+      // Continue anyway for development, but log the issue
     }
 
+    // Ensure IoT devices exist in database
+    await ensureIoTDevicesExist(greenhouseId);
+
+    // Store individual sensor readings
+    const sensorPromises = [];
+    const io = req.app.get('io');
+
+    // Temperature & Humidity (DHT11)
+    if (temperature !== undefined && humidity !== undefined && !isNaN(temperature) && !isNaN(humidity)) {
+      const dhtData = new SensorData({
+        greenhouseId,
+        sensorType: 'DHT11',
+        deviceId,
+        location: 'Main Greenhouse',
+        temperature: parseFloat(temperature),
+        humidity: parseFloat(humidity),
+        timestamp: new Date()
+      });
+      sensorPromises.push(dhtData.save());
+
+      // Emit real-time update
+      if (io) {
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'temperature',
+          value: parseFloat(temperature),
+          unit: '°C',
+          timestamp: new Date()
+        });
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'humidity',
+          value: parseFloat(humidity),
+          unit: '%',
+          timestamp: new Date()
+        });
+      }
+    }
+
+    // Soil Moisture
+    if (soilMoisture !== undefined && !isNaN(soilMoisture)) {
+      const moistureData = new SensorData({
+        greenhouseId,
+        sensorType: 'SOIL_MOISTURE',
+        deviceId,
+        location: 'Main Greenhouse',
+        soilMoisture: parseInt(soilMoisture),
+        rawValue: parseInt(soilMoisture),
+        timestamp: new Date()
+      });
+      sensorPromises.push(moistureData.save());
+
+      // Emit real-time update
+      if (io) {
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'soilMoisture',
+          value: parseInt(soilMoisture),
+          unit: 'raw',
+          timestamp: new Date()
+        });
+      }
+    }
+
+    // Light Level (LDR)
+    if (lightIntensity !== undefined && !isNaN(lightIntensity)) {
+      const lightData = new SensorData({
+        greenhouseId,
+        sensorType: 'LDR',
+        deviceId,
+        location: 'Main Greenhouse',
+        lightIntensity: parseInt(lightIntensity),
+        rawValue: parseInt(lightIntensity),
+        timestamp: new Date()
+      });
+      sensorPromises.push(lightData.save());
+
+      // Emit real-time update
+      if (io) {
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'lightLevel',
+          value: parseInt(lightIntensity),
+          unit: 'lux',
+          timestamp: new Date()
+        });
+      }
+    }
+
+    // Water Level (Ultrasonic)
+    if (waterLevel !== undefined && !isNaN(waterLevel) && waterLevel > 0) {
+      const waterData = new SensorData({
+        greenhouseId,
+        sensorType: 'ULTRASONIC',
+        deviceId,
+        location: 'Water Tank',
+        customValue: parseInt(waterLevel),
+        rawValue: parseInt(waterLevel),
+        timestamp: new Date()
+      });
+      sensorPromises.push(waterData.save());
+
+      // Emit real-time update
+      if (io) {
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'waterLevel',
+          value: parseInt(waterLevel),
+          unit: 'cm',
+          timestamp: new Date()
+        });
+      }
+    }
+
+    // Save all sensor data
+    await Promise.all(sensorPromises);
+
     // Check for threshold violations and create alerts
-    await checkThresholds(sensorData, io);
+    const latestSensorData = {
+      temperature: parseFloat(temperature) || 0,
+      humidity: parseFloat(humidity) || 0,
+      soilMoisture: parseInt(soilMoisture) || 0,
+      lightIntensity: parseInt(lightIntensity) || 0,
+      waterLevel: parseInt(waterLevel) || 0,
+      greenhouseId
+    };
+
+    await checkThresholds(latestSensorData, io);
+
+    // Send comprehensive sensor update to frontend
+    if (io) {
+      io.to(`greenhouse-${greenhouseId}`).emit('allSensorsUpdate', {
+        deviceId,
+        temperature: parseFloat(temperature) || 0,
+        humidity: parseFloat(humidity) || 0,
+        soilMoisture: parseInt(soilMoisture) || 0,
+        lightIntensity: parseInt(lightIntensity) || 0,
+        waterLevel: parseInt(waterLevel) || 0,
+        timestamp: new Date()
+      });
+    }
+
+    console.log('✅ ESP32 sensor data processed successfully');
 
     res.status(201).json({
       success: true,
-      message: 'Sensor data received and processed',
+      message: 'Sensor data received and processed successfully',
       data: {
-        id: sensorData._id,
-        timestamp: sensorData.timestamp
+        deviceId,
+        sensorsProcessed: sensorPromises.length,
+        timestamp: new Date()
       }
     });
 
   } catch (error) {
-    console.error('IoT sensor data error:', error);
+    console.error('❌ ESP32 data processing error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to process sensor data',
@@ -98,31 +224,46 @@ router.get('/device-commands/:deviceId', async (req, res) => {
     console.error('Device commands error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get device commands'
+      message: 'Failed to get device commands',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 });
 
-// POST /api/iot/device-status - IoT device reports its current status
+// POST /api/iot/device-status - ESP32 reports device status changes
 router.post('/device-status', async (req, res) => {
   try {
     const { 
       deviceId, 
       status, 
-      intensity, 
-      powerConsumption,
-      errorCode,
-      lastActivated
+      autoMode, 
+      greenhouseId = 'greenhouse-001',
+      intensity 
     } = req.body;
 
-    if (!deviceId) {
+    console.log(`📤 Device status update from ESP32:`, { deviceId, status, autoMode });
+
+    // Validate required fields
+    if (!deviceId || !status) {
       return res.status(400).json({
         success: false,
-        message: 'deviceId is required'
+        message: 'deviceId and status are required'
       });
     }
 
-    const device = await DeviceControl.findOne({ deviceId });
+    // Update device in database
+    const device = await DeviceControl.findOneAndUpdate(
+      { deviceId },
+      { 
+        status,
+        autoMode: autoMode !== undefined ? autoMode : true,
+        intensity: intensity !== undefined ? intensity : 100,
+        lastActivated: new Date(),
+        updatedAt: new Date()
+      },
+      { new: true, upsert: false }
+    );
+
     if (!device) {
       return res.status(404).json({
         success: false,
@@ -130,50 +271,37 @@ router.post('/device-status', async (req, res) => {
       });
     }
 
-    // Update device status
-    if (status !== undefined) device.status = status;
-    if (intensity !== undefined) device.intensity = intensity;
-    if (powerConsumption !== undefined) device.powerConsumption = powerConsumption;
-    if (lastActivated) device.lastActivated = new Date(lastActivated);
+    console.log(`✅ Device ${deviceId} status updated: ${status}`);
 
-    await device.save();
-
-    // Emit device update via Socket.IO
+    // Emit real-time update via Socket.IO
     const io = req.app.get('io');
     if (io) {
-      io.to(`greenhouse-${device.greenhouseId}`).emit('deviceUpdate', device);
-    }
-
-    // Create alert if device reports an error
-    if (errorCode) {
-      const alert = new Alert({
-        greenhouseId: device.greenhouseId,
-        alertType: 'DEVICE_MALFUNCTION',
-        severity: 'HIGH',
-        message: `Device ${device.deviceName} reported error code: ${errorCode}`,
-        currentValue: errorCode,
-        thresholdValue: 0,
-        sensorType: 'DEVICE',
-        deviceId: device.deviceId
+      io.to(`greenhouse-${device.greenhouseId}`).emit('deviceUpdate', {
+        deviceId: device.deviceId,
+        status: device.status,
+        autoMode: device.autoMode,
+        intensity: device.intensity,
+        lastActivated: device.lastActivated
       });
-      
-      await alert.save();
-      
-      if (io) {
-        io.to(`greenhouse-${device.greenhouseId}`).emit('newAlert', alert);
-      }
     }
 
     res.json({
       success: true,
-      message: 'Device status updated successfully'
+      message: 'Device status updated successfully',
+      data: {
+        deviceId: device.deviceId,
+        status: device.status,
+        autoMode: device.autoMode,
+        timestamp: new Date()
+      }
     });
 
   } catch (error) {
-    console.error('Device status error:', error);
+    console.error('Device status update error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update device status'
+      message: 'Failed to update device status',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 });
@@ -232,43 +360,55 @@ router.post('/bulk-data', async (req, res) => {
   }
 });
 
-// POST /api/iot - Comprehensive endpoint for ESP32 greenhouse controller
-router.post('/', async (req, res) => {
+// POST /api/iot - Main endpoint for ESP32 to send combined sensor data
+// POST /api/iot/old-format - Keep the old endpoint for backward compatibility
+router.post('/old-format', async (req, res) => {
   try {
     const { 
       deviceId,
-      timestamp,
-      sensors,
-      actuators,
-      status,
-      greenhouseId = 'greenhouse-001'
+      greenhouseId = 'greenhouse-001',
+      pincode,
+      temperature,
+      humidity,
+      soilMoisture,
+      lightIntensity,
+      waterLevel,
+      timestamp
     } = req.body;
 
+    console.log('📡 ESP32 data received from device:', deviceId);
+    console.log('📊 Raw sensor data:', { temperature, humidity, soilMoisture, lightIntensity, waterLevel });
+
     // Validate required fields
-    if (!deviceId || !sensors) {
+    if (!deviceId) {
       return res.status(400).json({
         success: false,
-        message: 'deviceId and sensors data are required'
+        message: 'deviceId is required'
       });
     }
 
-    console.log('📡 IoT data received from device:', deviceId);
-    console.log('📊 Sensor data:', sensors);
-    console.log('🔧 Actuator states:', actuators);
+    // Optional: Validate pincode for additional security
+    if (pincode && pincode !== process.env.ESP32_PINCODE && pincode !== '123456') {
+      console.log('⚠️ Invalid pincode from ESP32:', pincode);
+      // Continue anyway for development, but log the issue
+    }
+
+    // Ensure IoT devices exist in database
+    await ensureIoTDevicesExist(greenhouseId);
 
     // Store individual sensor readings
     const sensorPromises = [];
     const io = req.app.get('io');
 
     // Temperature & Humidity (DHT11)
-    if (sensors.temperature !== undefined && sensors.humidity !== undefined) {
+    if (temperature !== undefined && humidity !== undefined && !isNaN(temperature) && !isNaN(humidity)) {
       const dhtData = new SensorData({
         greenhouseId,
         sensorType: 'DHT11',
         deviceId,
         location: 'Main Greenhouse',
-        temperature: sensors.temperature,
-        humidity: sensors.humidity,
+        temperature: parseFloat(temperature),
+        humidity: parseFloat(humidity),
         timestamp: new Date()
       });
       sensorPromises.push(dhtData.save());
@@ -277,13 +417,13 @@ router.post('/', async (req, res) => {
       if (io) {
         io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
           type: 'temperature',
-          value: sensors.temperature,
+          value: parseFloat(temperature),
           unit: '°C',
           timestamp: new Date()
         });
         io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
           type: 'humidity',
-          value: sensors.humidity,
+          value: parseFloat(humidity),
           unit: '%',
           timestamp: new Date()
         });
@@ -291,13 +431,14 @@ router.post('/', async (req, res) => {
     }
 
     // Soil Moisture
-    if (sensors.soilMoisture !== undefined) {
+    if (soilMoisture !== undefined && !isNaN(soilMoisture)) {
       const moistureData = new SensorData({
         greenhouseId,
         sensorType: 'SOIL_MOISTURE',
         deviceId,
         location: 'Main Greenhouse',
-        soilMoisture: sensors.soilMoisture,
+        soilMoisture: parseInt(soilMoisture),
+        rawValue: parseInt(soilMoisture),
         timestamp: new Date()
       });
       sensorPromises.push(moistureData.save());
@@ -306,7 +447,7 @@ router.post('/', async (req, res) => {
       if (io) {
         io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
           type: 'soilMoisture',
-          value: sensors.soilMoisture,
+          value: parseInt(soilMoisture),
           unit: 'raw',
           timestamp: new Date()
         });
@@ -314,13 +455,14 @@ router.post('/', async (req, res) => {
     }
 
     // Light Level (LDR)
-    if (sensors.lightLevel !== undefined) {
+    if (lightIntensity !== undefined && !isNaN(lightIntensity)) {
       const lightData = new SensorData({
         greenhouseId,
         sensorType: 'LDR',
         deviceId,
         location: 'Main Greenhouse',
-        lightIntensity: sensors.lightLevel,
+        lightIntensity: parseInt(lightIntensity),
+        rawValue: parseInt(lightIntensity),
         timestamp: new Date()
       });
       sensorPromises.push(lightData.save());
@@ -329,7 +471,7 @@ router.post('/', async (req, res) => {
       if (io) {
         io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
           type: 'lightLevel',
-          value: sensors.lightLevel,
+          value: parseInt(lightIntensity),
           unit: 'lux',
           timestamp: new Date()
         });
@@ -337,13 +479,14 @@ router.post('/', async (req, res) => {
     }
 
     // Water Level (Ultrasonic)
-    if (sensors.waterLevel !== undefined) {
+    if (waterLevel !== undefined && !isNaN(waterLevel) && waterLevel > 0) {
       const waterData = new SensorData({
         greenhouseId,
         sensorType: 'ULTRASONIC',
         deviceId,
         location: 'Water Tank',
-        customValue: sensors.waterLevel,
+        customValue: parseInt(waterLevel),
+        rawValue: parseInt(waterLevel),
         timestamp: new Date()
       });
       sensorPromises.push(waterData.save());
@@ -352,7 +495,454 @@ router.post('/', async (req, res) => {
       if (io) {
         io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
           type: 'waterLevel',
-          value: sensors.waterLevel,
+          value: parseInt(waterLevel),
+          unit: 'cm',
+          timestamp: new Date()
+        });
+      }
+    }
+
+    // Save all sensor data
+    await Promise.all(sensorPromises);
+
+    // Check for threshold violations and create alerts
+    const latestSensorData = {
+      temperature: parseFloat(temperature) || 0,
+      humidity: parseFloat(humidity) || 0,
+      soilMoisture: parseInt(soilMoisture) || 0,
+      lightIntensity: parseInt(lightIntensity) || 0,
+      waterLevel: parseInt(waterLevel) || 0,
+      greenhouseId
+    };
+
+    await checkThresholds(latestSensorData, io);
+
+    // Send comprehensive sensor update to frontend
+    if (io) {
+      io.to(`greenhouse-${greenhouseId}`).emit('allSensorsUpdate', {
+        deviceId,
+        temperature: parseFloat(temperature) || 0,
+        humidity: parseFloat(humidity) || 0,
+        soilMoisture: parseInt(soilMoisture) || 0,
+        lightIntensity: parseInt(lightIntensity) || 0,
+        waterLevel: parseInt(waterLevel) || 0,
+        timestamp: new Date()
+      });
+    }
+
+    console.log('✅ ESP32 sensor data processed successfully');
+
+    res.status(201).json({
+      success: true,
+      message: 'Sensor data received and processed successfully',
+      data: {
+        deviceId,
+        sensorsProcessed: sensorPromises.length,
+        timestamp: new Date()
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ ESP32 data processing error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process sensor data',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// POST /api/iot/old-format - Keep the old endpoint for backward compatibility
+router.post('/old-format', async (req, res) => {
+  try {
+    const { 
+      deviceId, 
+      status, 
+      autoMode, 
+      greenhouseId = 'greenhouse-001',
+      intensity 
+    } = req.body;
+
+    console.log(`📤 Device status update from old format:`, { deviceId, status, autoMode });
+
+    // Validate required fields
+    if (!deviceId || !status) {
+      return res.status(400).json({
+        success: false,
+        message: 'deviceId and status are required'
+      });
+    }
+
+    // Update device in database
+    const device = await DeviceControl.findOneAndUpdate(
+      { deviceId },
+      { 
+        status,
+        autoMode: autoMode !== undefined ? autoMode : true,
+        intensity: intensity !== undefined ? intensity : 100,
+        lastActivated: new Date(),
+        updatedAt: new Date()
+      },
+      { new: true, upsert: false }
+    );
+
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+
+    console.log(`✅ Device ${deviceId} status updated (old format): ${status}`);
+
+    // Emit real-time update via Socket.IO
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`greenhouse-${device.greenhouseId}`).emit('deviceUpdate', {
+        deviceId: device.deviceId,
+        status: device.status,
+        autoMode: device.autoMode,
+        intensity: device.intensity,
+        lastActivated: device.lastActivated
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Device status updated successfully (old format)',
+      data: {
+        deviceId: device.deviceId,
+        status: device.status,
+        autoMode: device.autoMode,
+        timestamp: new Date()
+      }
+    });
+
+  } catch (error) {
+    console.error('Device status update error (old format):', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update device status (old format)',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// POST /api/iot/legacy - Legacy endpoint for older devices
+router.post('/legacy', async (req, res) => {
+  try {
+    const { 
+      deviceId, 
+      temperature, 
+      humidity, 
+      soilMoisture, 
+      lightIntensity, 
+      waterLevel, 
+      status, 
+      autoMode, 
+      greenhouseId = 'greenhouse-001' 
+    } = req.body;
+
+    console.log('📡 Legacy data received from device:', deviceId);
+    console.log('📊 Legacy sensor data:', { temperature, humidity, soilMoisture, lightIntensity, waterLevel });
+
+    // Validate required fields
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'deviceId is required'
+      });
+    }
+
+    // Ensure IoT devices exist in database
+    await ensureIoTDevicesExist(greenhouseId);
+
+    // Store individual sensor readings
+    const sensorPromises = [];
+    const io = req.app.get('io');
+
+    // Temperature & Humidity (DHT11)
+    if (temperature !== undefined && humidity !== undefined && !isNaN(temperature) && !isNaN(humidity)) {
+      const dhtData = new SensorData({
+        greenhouseId,
+        sensorType: 'DHT11',
+        deviceId,
+        location: 'Main Greenhouse',
+        temperature: parseFloat(temperature),
+        humidity: parseFloat(humidity),
+        timestamp: new Date()
+      });
+      sensorPromises.push(dhtData.save());
+
+      // Emit real-time update
+      if (io) {
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'temperature',
+          value: parseFloat(temperature),
+          unit: '°C',
+          timestamp: new Date()
+        });
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'humidity',
+          value: parseFloat(humidity),
+          unit: '%',
+          timestamp: new Date()
+        });
+      }
+    }
+
+    // Soil Moisture
+    if (soilMoisture !== undefined && !isNaN(soilMoisture)) {
+      const moistureData = new SensorData({
+        greenhouseId,
+        sensorType: 'SOIL_MOISTURE',
+        deviceId,
+        location: 'Main Greenhouse',
+        soilMoisture: parseInt(soilMoisture),
+        rawValue: parseInt(soilMoisture),
+        timestamp: new Date()
+      });
+      sensorPromises.push(moistureData.save());
+
+      // Emit real-time update
+      if (io) {
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'soilMoisture',
+          value: parseInt(soilMoisture),
+          unit: 'raw',
+          timestamp: new Date()
+        });
+      }
+    }
+
+    // Light Level (LDR)
+    if (lightIntensity !== undefined && !isNaN(lightIntensity)) {
+      const lightData = new SensorData({
+        greenhouseId,
+        sensorType: 'LDR',
+        deviceId,
+        location: 'Main Greenhouse',
+        lightIntensity: parseInt(lightIntensity),
+        rawValue: parseInt(lightIntensity),
+        timestamp: new Date()
+      });
+      sensorPromises.push(lightData.save());
+
+      // Emit real-time update
+      if (io) {
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'lightLevel',
+          value: parseInt(lightIntensity),
+          unit: 'lux',
+          timestamp: new Date()
+        });
+      }
+    }
+
+    // Water Level (Ultrasonic)
+    if (waterLevel !== undefined && !isNaN(waterLevel) && waterLevel > 0) {
+      const waterData = new SensorData({
+        greenhouseId,
+        sensorType: 'ULTRASONIC',
+        deviceId,
+        location: 'Water Tank',
+        customValue: parseInt(waterLevel),
+        rawValue: parseInt(waterLevel),
+        timestamp: new Date()
+      });
+      sensorPromises.push(waterData.save());
+
+      // Emit real-time update
+      if (io) {
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'waterLevel',
+          value: parseInt(waterLevel),
+          unit: 'cm',
+          timestamp: new Date()
+        });
+      }
+    }
+
+    // Save all sensor data
+    await Promise.all(sensorPromises);
+
+    // Update or create device control states for actuators
+    if (actuators) {
+      // Water Pump
+      if (actuators.waterPump !== undefined) {
+        await updateDeviceControl(
+          'WATER_PUMP_001',
+          greenhouseId,
+          actuators.waterPump ? 'ON' : 'OFF',
+          io
+        );
+      }
+
+      // Window Servo
+      if (actuators.window !== undefined) {
+        await updateDeviceControl(
+          'WINDOW_SERVO_001',
+          greenhouseId,
+          actuators.window ? 'OPEN' : 'CLOSED',
+          io
+        );
+      }
+    }
+
+    // Check thresholds and create alerts if necessary
+    if (sensors.temperature || sensors.humidity || sensors.soilMoisture || sensors.lightLevel) {
+      await checkComprehensiveThresholds(sensors, greenhouseId, deviceId, io);
+    }
+
+    // Prepare response with any commands for the device
+    const responseData = {
+      success: true,
+      message: 'Data received and processed',
+      timestamp: new Date(),
+      commands: await getDeviceCommands(deviceId, greenhouseId)
+    };
+
+    res.status(200).json(responseData);
+
+  } catch (error) {
+    console.error('❌ IoT endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process IoT data',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// POST /api/iot/legacy - Legacy endpoint for older devices
+router.post('/legacy', async (req, res) => {
+  try {
+    const { 
+      deviceId, 
+      temperature, 
+      humidity, 
+      soilMoisture, 
+      lightIntensity, 
+      waterLevel, 
+      status, 
+      autoMode, 
+      greenhouseId = 'greenhouse-001' 
+    } = req.body;
+
+    console.log('📡 Legacy data received from device:', deviceId);
+    console.log('📊 Legacy sensor data:', { temperature, humidity, soilMoisture, lightIntensity, waterLevel });
+
+    // Validate required fields
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'deviceId is required'
+      });
+    }
+
+    // Ensure IoT devices exist in database
+    await ensureIoTDevicesExist(greenhouseId);
+
+    // Store individual sensor readings
+    const sensorPromises = [];
+    const io = req.app.get('io');
+
+    // Temperature & Humidity (DHT11)
+    if (temperature !== undefined && humidity !== undefined && !isNaN(temperature) && !isNaN(humidity)) {
+      const dhtData = new SensorData({
+        greenhouseId,
+        sensorType: 'DHT11',
+        deviceId,
+        location: 'Main Greenhouse',
+        temperature: parseFloat(temperature),
+        humidity: parseFloat(humidity),
+        timestamp: new Date()
+      });
+      sensorPromises.push(dhtData.save());
+
+      // Emit real-time update
+      if (io) {
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'temperature',
+          value: parseFloat(temperature),
+          unit: '°C',
+          timestamp: new Date()
+        });
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'humidity',
+          value: parseFloat(humidity),
+          unit: '%',
+          timestamp: new Date()
+        });
+      }
+    }
+
+    // Soil Moisture
+    if (soilMoisture !== undefined && !isNaN(soilMoisture)) {
+      const moistureData = new SensorData({
+        greenhouseId,
+        sensorType: 'SOIL_MOISTURE',
+        deviceId,
+        location: 'Main Greenhouse',
+        soilMoisture: parseInt(soilMoisture),
+        rawValue: parseInt(soilMoisture),
+        timestamp: new Date()
+      });
+      sensorPromises.push(moistureData.save());
+
+      // Emit real-time update
+      if (io) {
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'soilMoisture',
+          value: parseInt(soilMoisture),
+          unit: 'raw',
+          timestamp: new Date()
+        });
+      }
+    }
+
+    // Light Level (LDR)
+    if (lightIntensity !== undefined && !isNaN(lightIntensity)) {
+      const lightData = new SensorData({
+        greenhouseId,
+        sensorType: 'LDR',
+        deviceId,
+        location: 'Main Greenhouse',
+        lightIntensity: parseInt(lightIntensity),
+        rawValue: parseInt(lightIntensity),
+        timestamp: new Date()
+      });
+      sensorPromises.push(lightData.save());
+
+      // Emit real-time update
+      if (io) {
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'lightLevel',
+          value: parseInt(lightIntensity),
+          unit: 'lux',
+          timestamp: new Date()
+        });
+      }
+    }
+
+    // Water Level (Ultrasonic)
+    if (waterLevel !== undefined && !isNaN(waterLevel) && waterLevel > 0) {
+      const waterData = new SensorData({
+        greenhouseId,
+        sensorType: 'ULTRASONIC',
+        deviceId,
+        location: 'Water Tank',
+        customValue: parseInt(waterLevel),
+        rawValue: parseInt(waterLevel),
+        timestamp: new Date()
+      });
+      sensorPromises.push(waterData.save());
+
+      // Emit real-time update
+      if (io) {
+        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
+          type: 'waterLevel',
+          value: parseInt(waterLevel),
           unit: 'cm',
           timestamp: new Date()
         });
@@ -598,127 +1188,168 @@ async function getDeviceCommands(deviceId, greenhouseId) {
 
 // Function to check thresholds and create alerts
 async function checkThresholds(sensorData, io) {
-  const alerts = [];
-  
-  // Temperature thresholds
-  if (sensorData.temperature !== undefined) {
-    const tempHigh = parseFloat(process.env.ALERT_THRESHOLD_TEMP_HIGH) || 35;
-    const tempLow = parseFloat(process.env.ALERT_THRESHOLD_TEMP_LOW) || 15;
-    
-    if (sensorData.temperature > tempHigh) {
-      alerts.push({
-        greenhouseId: sensorData.greenhouseId,
-        alertType: 'TEMPERATURE_HIGH',
-        severity: sensorData.temperature > tempHigh + 5 ? 'CRITICAL' : 'HIGH',
-        message: `Temperature is ${sensorData.temperature}°C (threshold: ${tempHigh}°C)`,
-        currentValue: sensorData.temperature,
-        thresholdValue: tempHigh,
-        sensorType: sensorData.sensorType,
-        deviceId: sensorData.deviceId
-      });
-    } else if (sensorData.temperature < tempLow) {
-      alerts.push({
-        greenhouseId: sensorData.greenhouseId,
-        alertType: 'TEMPERATURE_LOW',
-        severity: sensorData.temperature < tempLow - 5 ? 'CRITICAL' : 'HIGH',
-        message: `Temperature is ${sensorData.temperature}°C (threshold: ${tempLow}°C)`,
-        currentValue: sensorData.temperature,
-        thresholdValue: tempLow,
-        sensorType: sensorData.sensorType,
-        deviceId: sensorData.deviceId
-      });
+  try {
+    const {
+      temperature,
+      humidity,
+      soilMoisture,
+      lightIntensity,
+      waterLevel,
+      greenhouseId
+    } = sensorData;
+
+    // Skip if we don't have valid sensor data
+    if (temperature === undefined && humidity === undefined && soilMoisture === undefined && lightIntensity === undefined) {
+      console.log('⚠️ No valid sensor data for threshold checking');
+      return;
     }
-  }
-  
-  // Humidity thresholds
-  if (sensorData.humidity !== undefined) {
-    const humidityHigh = parseFloat(process.env.ALERT_THRESHOLD_HUMIDITY_HIGH) || 80;
-    const humidityLow = parseFloat(process.env.ALERT_THRESHOLD_HUMIDITY_LOW) || 40;
-    
-    if (sensorData.humidity > humidityHigh) {
-      alerts.push({
-        greenhouseId: sensorData.greenhouseId,
-        alertType: 'HUMIDITY_HIGH',
-        severity: 'MEDIUM',
-        message: `Humidity is ${sensorData.humidity}% (threshold: ${humidityHigh}%)`,
-        currentValue: sensorData.humidity,
-        thresholdValue: humidityHigh,
-        sensorType: sensorData.sensorType,
-        deviceId: sensorData.deviceId
-      });
-    } else if (sensorData.humidity < humidityLow) {
-      alerts.push({
-        greenhouseId: sensorData.greenhouseId,
-        alertType: 'HUMIDITY_LOW',
-        severity: 'MEDIUM',
-        message: `Humidity is ${sensorData.humidity}% (threshold: ${humidityLow}%)`,
-        currentValue: sensorData.humidity,
-        thresholdValue: humidityLow,
-        sensorType: sensorData.sensorType,
-        deviceId: sensorData.deviceId
-      });
+
+    const alerts = [];
+
+    // Temperature alerts
+    if (temperature !== undefined && !isNaN(temperature)) {
+      if (temperature > (process.env.ALERT_THRESHOLD_TEMP_HIGH || 35)) {
+        alerts.push({
+          alertType: 'TEMPERATURE_HIGH',
+          message: `Temperature is too high: ${temperature}°C`,
+          severity: 'HIGH',
+          greenhouseId,
+          sensorType: 'TEMPERATURE',
+          currentValue: temperature,
+          threshold: process.env.ALERT_THRESHOLD_TEMP_HIGH || 35
+        });
+      } else if (temperature < (process.env.ALERT_THRESHOLD_TEMP_LOW || 15)) {
+        alerts.push({
+          alertType: 'TEMPERATURE_LOW',
+          message: `Temperature is too low: ${temperature}°C`,
+          severity: 'MEDIUM',
+          greenhouseId,
+          sensorType: 'TEMPERATURE',
+          currentValue: temperature,
+          threshold: process.env.ALERT_THRESHOLD_TEMP_LOW || 15
+        });
+      }
     }
-  }
-  
-  // Soil moisture thresholds
-  if (sensorData.soilMoisture !== undefined) {
-    const moistureLow = parseFloat(process.env.ALERT_THRESHOLD_SOIL_MOISTURE_LOW) || 30;
-    
-    if (sensorData.soilMoisture < moistureLow) {
-      alerts.push({
-        greenhouseId: sensorData.greenhouseId,
-        alertType: 'SOIL_MOISTURE_LOW',
-        severity: sensorData.soilMoisture < moistureLow / 2 ? 'CRITICAL' : 'HIGH',
-        message: `Soil moisture is ${sensorData.soilMoisture}% (threshold: ${moistureLow}%)`,
-        currentValue: sensorData.soilMoisture,
-        thresholdValue: moistureLow,
-        sensorType: sensorData.sensorType,
-        deviceId: sensorData.deviceId
-      });
+
+    // Humidity alerts
+    if (humidity !== undefined && !isNaN(humidity)) {
+      if (humidity > (process.env.ALERT_THRESHOLD_HUMIDITY_HIGH || 80)) {
+        alerts.push({
+          alertType: 'HUMIDITY_HIGH',
+          message: `Humidity is too high: ${humidity}%`,
+          severity: 'MEDIUM',
+          greenhouseId,
+          sensorType: 'HUMIDITY',
+          currentValue: humidity,
+          threshold: process.env.ALERT_THRESHOLD_HUMIDITY_HIGH || 80
+        });
+      } else if (humidity < (process.env.ALERT_THRESHOLD_HUMIDITY_LOW || 40)) {
+        alerts.push({
+          alertType: 'HUMIDITY_LOW',
+          message: `Humidity is too low: ${humidity}%`,
+          severity: 'MEDIUM',
+          greenhouseId,
+          sensorType: 'HUMIDITY',
+          currentValue: humidity,
+          threshold: process.env.ALERT_THRESHOLD_HUMIDITY_LOW || 40
+        });
+      }
     }
-  }
-  
-  // Light intensity thresholds
-  if (sensorData.lightIntensity !== undefined) {
-    const lightLow = parseFloat(process.env.ALERT_THRESHOLD_LIGHT_LOW) || 200;
-    
-    if (sensorData.lightIntensity < lightLow) {
-      alerts.push({
-        greenhouseId: sensorData.greenhouseId,
-        alertType: 'LIGHT_LEVEL_LOW',
-        severity: 'MEDIUM',
-        message: `Light level is ${sensorData.lightIntensity} lux (threshold: ${lightLow} lux)`,
-        currentValue: sensorData.lightIntensity,
-        thresholdValue: lightLow,
-        sensorType: sensorData.sensorType,
-        deviceId: sensorData.deviceId
-      });
+
+    // Soil moisture alerts
+    if (soilMoisture !== undefined && !isNaN(soilMoisture)) {
+      if (soilMoisture < (process.env.ALERT_THRESHOLD_SOIL_MOISTURE_LOW || 300)) {
+        alerts.push({
+          alertType: 'SOIL_MOISTURE_LOW',
+          message: `Soil moisture is low: ${soilMoisture}`,
+          severity: 'HIGH',
+          greenhouseId,
+          sensorType: 'SOIL_MOISTURE',
+          currentValue: soilMoisture,
+          threshold: process.env.ALERT_THRESHOLD_SOIL_MOISTURE_LOW || 300
+        });
+      }
     }
-  }
-  
-  // Save alerts and emit via Socket.IO
-  for (const alertData of alerts) {
-    try {
-      // Check if similar alert already exists and is not resolved
-      const existingAlert = await Alert.findOne({
-        greenhouseId: alertData.greenhouseId,
-        alertType: alertData.alertType,
-        deviceId: alertData.deviceId,
-        isResolved: false,
-        createdAt: { $gte: new Date(Date.now() - 10 * 60 * 1000) } // Within last 10 minutes
-      });
-      
-      if (!existingAlert) {
+
+    // Light level alerts
+    if (lightIntensity !== undefined && !isNaN(lightIntensity)) {
+      if (lightIntensity < (process.env.ALERT_THRESHOLD_LIGHT_LOW || 200)) {
+        alerts.push({
+          alertType: 'LIGHT_LOW',
+          message: `Light level is low: ${lightIntensity} lux`,
+          severity: 'LOW',
+          greenhouseId,
+          sensorType: 'LIGHT',
+          currentValue: lightIntensity,
+          threshold: process.env.ALERT_THRESHOLD_LIGHT_LOW || 200
+        });
+      }
+    }
+
+    // Save alerts and emit them
+    for (const alertData of alerts) {
+      try {
         const alert = new Alert(alertData);
         await alert.save();
         
         if (io) {
-          io.to(`greenhouse-${alert.greenhouseId}`).emit('newAlert', alert);
+          io.to(`greenhouse-${greenhouseId}`).emit('newAlert', alert);
         }
+        
+        console.log(`🚨 Alert created: ${alertData.alertType} - ${alertData.message}`);
+      } catch (alertError) {
+        console.error('Error creating individual alert:', alertError.message);
       }
-    } catch (error) {
-      console.error('Error creating alert:', error);
     }
+
+  } catch (error) {
+    console.error('Error in checkThresholds:', error.message);
+  }
+}
+
+// Helper function to ensure IoT devices exist in the database
+async function ensureIoTDevicesExist(greenhouseId) {
+  try {
+    // Check if water pump device exists
+    let waterPumpDevice = await DeviceControl.findOne({ deviceId: 'WATER_PUMP_001' });
+    if (!waterPumpDevice) {
+      waterPumpDevice = new DeviceControl({
+        deviceId: 'WATER_PUMP_001',
+        deviceName: 'Smart Water Pump',
+        deviceType: 'WATER_PUMP',
+        greenhouseId: greenhouseId,
+        status: 'OFF',
+        autoMode: true,
+        location: 'Main Greenhouse',
+        intensity: 100,
+        powerConsumption: 25
+      });
+      await waterPumpDevice.save();
+      console.log('🔧 Created water pump device entry');
+    }
+
+    // Check if window servo device exists
+    let windowDevice = await DeviceControl.findOne({ deviceId: 'WINDOW_SERVO_001' });
+    if (!windowDevice) {
+      windowDevice = new DeviceControl({
+        deviceId: 'WINDOW_SERVO_001',
+        deviceName: 'Automated Window',
+        deviceType: 'SERVO',
+        greenhouseId: greenhouseId,
+        status: 'CLOSED',
+        autoMode: true,
+        location: 'Main Greenhouse',
+        intensity: 90,
+        powerConsumption: 5
+      });
+      await windowDevice.save();
+      console.log('🔧 Created window servo device entry');
+    }
+
+    return { waterPumpDevice, windowDevice };
+  } catch (error) {
+    console.error('Error ensuring IoT devices exist:', error);
+    return null;
   }
 }
 

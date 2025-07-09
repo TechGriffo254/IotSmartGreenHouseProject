@@ -124,25 +124,30 @@ class ESP32Simulator {
     }
 
     generateAllSensorData() {
-        let allSensorData = {};
+        let allSensorData = {
+            deviceId: this.deviceId,
+            greenhouseId: 'greenhouse-001',
+            timestamp: new Date().toISOString()
+        };
         
         this.sensorTypes.forEach(sensorType => {
             const reading = this.generateSensorReading(sensorType);
-            allSensorData = { ...allSensorData, ...reading };
+            // Flatten the sensor data to match backend expectations
+            Object.assign(allSensorData, reading);
         });
         
-        return {
-            deviceId: this.deviceId,
-            location: this.location,
-            timestamp: new Date().toISOString(),
-            sensors: allSensorData,
-            devices: { ...this.deviceStates }
-        };
+        // Map sensor names to match backend expectations
+        if (allSensorData.light !== undefined) {
+            allSensorData.lightIntensity = allSensorData.light;
+            delete allSensorData.light;
+        }
+        
+        return allSensorData;
     }
 
     async sendData(data) {
         try {
-            const response = await axios.post(`${this.backendUrl}/api/sensors`, data, {
+            const response = await axios.post(`${this.backendUrl}/api/iot`, data, {
                 headers: {
                     'Content-Type': 'application/json'
                 },
@@ -158,7 +163,7 @@ class ESP32Simulator {
 
     async checkCommands() {
         try {
-            const response = await axios.get(`${this.backendUrl}/api/devices?deviceId=${this.deviceId}`, {
+            const response = await axios.get(`${this.backendUrl}/api/iot/device-commands/${this.deviceId}`, {
                 timeout: 5000
             });
             

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Power, Settings, Zap, Fan, Lightbulb, Waves } from 'lucide-react';
+import { Power, Settings, Zap, Fan, Lightbulb, Waves, Wind } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -7,8 +7,9 @@ import toast from 'react-hot-toast';
 const DeviceCard = ({ device, compact = false }) => {
   const getDeviceIcon = (deviceType) => {
     switch (deviceType) {
-      case 'FAN': return Fan;
       case 'WATER_PUMP': return Waves;
+      case 'SERVO': return Wind; // Window servo
+      case 'FAN': return Fan;
       case 'LED_LIGHT': return Lightbulb;
       case 'HEATER': return Zap;
       case 'COOLING_SYSTEM': return Fan;
@@ -20,6 +21,8 @@ const DeviceCard = ({ device, compact = false }) => {
     switch (status) {
       case 'ON': return 'bg-green-500';
       case 'OFF': return 'bg-gray-400';
+      case 'OPEN': return 'bg-green-500';
+      case 'CLOSED': return 'bg-gray-400';
       case 'AUTO': return 'bg-blue-500';
       default: return 'bg-gray-400';
     }
@@ -27,12 +30,31 @@ const DeviceCard = ({ device, compact = false }) => {
 
   const toggleDevice = async () => {
     try {
-      const response = await axios.post(`/api/devices/${device.deviceId}/toggle`);
+      // Determine the appropriate action based on device type and current status
+      let action = 'toggle';
+      
+      if (device.deviceType === 'SERVO') {
+        // For window servo, use open/close actions
+        action = device.status === 'OPEN' ? 'close' : 'open';
+      } else if (device.deviceType === 'WATER_PUMP') {
+        // For water pump, use turn_on/turn_off actions
+        action = device.status === 'ON' ? 'turn_off' : 'turn_on';
+      }
+      
+      const response = await axios.post(`/api/devices/${device.deviceId}/control`, {
+        action: action
+      });
+      
       if (response.data.success) {
         toast.success(response.data.message);
+        
+        // Show control log info
+        if (response.data.controlLog) {
+          console.log('Device control logged:', response.data.controlLog);
+        }
       }
     } catch (error) {
-      const message = error.response?.data?.message || 'Failed to toggle device';
+      const message = error.response?.data?.message || 'Failed to control device';
       toast.error(message);
     }
   };
@@ -41,12 +63,12 @@ const DeviceCard = ({ device, compact = false }) => {
 
   return (
     <div className={`bg-white rounded-lg shadow-md border border-gray-200 ${
-      device.status === 'ON' ? 'ring-2 ring-green-200' : ''
-    } ${compact ? 'p-3' : 'p-4'} device-card ${device.status === 'ON' ? 'active' : ''}`}>
+      device.status === 'ON' || device.status === 'OPEN' ? 'ring-2 ring-green-200' : ''
+    } ${compact ? 'p-3' : 'p-4'} device-card ${device.status === 'ON' || device.status === 'OPEN' ? 'active' : ''}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center">
           <div className={`p-2 rounded-full ${
-            device.status === 'ON' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
+            device.status === 'ON' || device.status === 'OPEN' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
           }`}>
             <Icon className="h-5 w-5" />
           </div>
@@ -63,7 +85,7 @@ const DeviceCard = ({ device, compact = false }) => {
         <div className="flex items-center space-x-2">
           <div className={`w-3 h-3 rounded-full ${getStatusColor(device.status)}`}></div>
           <span className={`font-medium ${
-            device.status === 'ON' ? 'text-green-600' : 
+            device.status === 'ON' || device.status === 'OPEN' ? 'text-green-600' : 
             device.status === 'AUTO' ? 'text-blue-600' : 
             'text-gray-600'
           } ${compact ? 'text-xs' : 'text-sm'}`}>
@@ -115,13 +137,16 @@ const DeviceCard = ({ device, compact = false }) => {
           <button
             onClick={toggleDevice}
             className={`flex items-center px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-              device.status === 'ON' 
+              device.status === 'ON' || device.status === 'OPEN'
                 ? 'bg-red-100 text-red-700 hover:bg-red-200' 
                 : 'bg-green-100 text-green-700 hover:bg-green-200'
             }`}
           >
             <Power className="h-4 w-4 mr-1" />
-            {device.status === 'ON' ? 'Turn Off' : 'Turn On'}
+            {device.deviceType === 'SERVO' 
+              ? (device.status === 'OPEN' ? 'Close Window' : 'Open Window')
+              : (device.status === 'ON' ? 'Turn Off' : 'Turn On')
+            }
           </button>
         </div>
       </div>

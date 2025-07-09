@@ -69,6 +69,46 @@ export const SocketProvider = ({ children }) => {
         }));
       });
 
+      // Listen for comprehensive sensor updates from ESP32
+      newSocket.on('allSensorsUpdate', (data) => {
+        console.log('📊 All sensors update received:', data);
+        
+        // Update all sensor readings at once
+        setSensorData(prevData => ({
+          ...prevData,
+          temperature: {
+            type: 'temperature',
+            value: data.temperature,
+            unit: '°C',
+            timestamp: data.timestamp
+          },
+          humidity: {
+            type: 'humidity',
+            value: data.humidity,
+            unit: '%',
+            timestamp: data.timestamp
+          },
+          soilMoisture: {
+            type: 'soilMoisture',
+            value: data.soilMoisture,
+            unit: 'raw',
+            timestamp: data.timestamp
+          },
+          lightLevel: {
+            type: 'lightLevel',
+            value: data.lightIntensity,
+            unit: 'lux',
+            timestamp: data.timestamp
+          },
+          waterLevel: {
+            type: 'waterLevel',
+            value: data.waterLevel,
+            unit: 'cm',
+            timestamp: data.timestamp
+          }
+        }));
+      });
+
       // Listen for new alerts
       newSocket.on('newAlert', (alert) => {
         setAlerts(prevAlerts => [alert, ...prevAlerts]);

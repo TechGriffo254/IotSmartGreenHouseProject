@@ -136,7 +136,6 @@ export const SocketProvider = ({ children }) => {
 
         setSocket(newSocket);
       }
-    }
 
     // Cleanup function
     return () => {

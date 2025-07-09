@@ -107,7 +107,7 @@ function sendDataToServer() {
     });
 
     res.on('end', () => {
-      if (res.statusCode === 200) {
+      if (res.statusCode === 200 || res.statusCode === 201) {
         try {
           const response = JSON.parse(responseData);
           console.log('✅ Data sent successfully');

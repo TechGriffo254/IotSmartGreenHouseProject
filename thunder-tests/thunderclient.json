@@ -1,0 +1,290 @@
+{
+  "client": "Thunder Client",
+  "collectionName": "Greenhouse IoT API",
+  "dateExported": "2025-07-09T12:00:00.000Z",
+  "version": "1.1",
+  "folders": [
+    {
+      "_id": "auth-folder",
+      "name": "Authentication",
+      "containerId": "",
+      "created": "2025-07-09T12:00:00.000Z",
+      "sortNum": 10000
+    },
+    {
+      "_id": "iot-folder", 
+      "name": "IoT Endpoints",
+      "containerId": "",
+      "created": "2025-07-09T12:00:00.000Z",
+      "sortNum": 20000
+    },
+    {
+      "_id": "sensors-folder",
+      "name": "Sensors",
+      "containerId": "",
+      "created": "2025-07-09T12:00:00.000Z", 
+      "sortNum": 30000
+    },
+    {
+      "_id": "devices-folder",
+      "name": "Devices",
+      "containerId": "",
+      "created": "2025-07-09T12:00:00.000Z",
+      "sortNum": 40000
+    },
+    {
+      "_id": "alerts-folder",
+      "name": "Alerts",
+      "containerId": "",
+      "created": "2025-07-09T12:00:00.000Z",
+      "sortNum": 50000
+    }
+  ],
+  "requests": [
+    {
+      "_id": "health-check",
+      "colId": "greenhouse-collection",
+      "containerId": "",
+      "name": "Health Check",
+      "url": "{{baseURL}}/health",
+      "method": "GET",
+      "sortNum": 5000,
+      "created": "2025-07-09T12:00:00.000Z",
+      "modified": "2025-07-09T12:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "tests": []
+    },
+    {
+      "_id": "register-user",
+      "colId": "greenhouse-collection", 
+      "containerId": "auth-folder",
+      "name": "Register User",
+      "url": "{{baseURL}}/auth/register",
+      "method": "POST",
+      "sortNum": 10000,
+      "created": "2025-07-09T12:00:00.000Z",
+      "modified": "2025-07-09T12:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"role\": \"operator\"\n}",
+        "form": []
+      },
+      "tests": []
+    },
+    {
+      "_id": "login-user",
+      "colId": "greenhouse-collection",
+      "containerId": "auth-folder", 
+      "name": "Login User",
+      "url": "{{baseURL}}/auth/login",
+      "method": "POST",
+      "sortNum": 20000,
+      "created": "2025-07-09T12:00:00.000Z",
+      "modified": "2025-07-09T12:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"username\": \"testuser\",\n  \"password\": \"password123\"\n}",
+        "form": []
+      },
+      "tests": []
+    },
+    {
+      "_id": "send-sensor-data-dht11",
+      "colId": "greenhouse-collection",
+      "containerId": "iot-folder",
+      "name": "Send DHT11 Sensor Data", 
+      "url": "{{baseURL}}/iot/sensor-data",
+      "method": "POST",
+      "sortNum": 30000,
+      "created": "2025-07-09T12:00:00.000Z",
+      "modified": "2025-07-09T12:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"deviceId\": \"ESP32_001\",\n  \"sensorType\": \"DHT11\",\n  \"temperature\": 24.5,\n  \"humidity\": 65.2,\n  \"greenhouseId\": \"greenhouse-001\",\n  \"location\": \"Main Greenhouse\"\n}",
+        "form": []
+      },
+      "tests": []
+    },
+    {
+      "_id": "send-sensor-data-ldr",
+      "colId": "greenhouse-collection",
+      "containerId": "iot-folder",
+      "name": "Send LDR Sensor Data",
+      "url": "{{baseURL}}/iot/sensor-data", 
+      "method": "POST",
+      "sortNum": 40000,
+      "created": "2025-07-09T12:00:00.000Z",
+      "modified": "2025-07-09T12:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"deviceId\": \"ESP32_002\",\n  \"sensorType\": \"LDR\", \n  \"lightIntensity\": 750,\n  \"greenhouseId\": \"greenhouse-001\",\n  \"location\": \"Main Greenhouse\"\n}",
+        "form": []
+      },
+      "tests": []
+    },
+    {
+      "_id": "send-sensor-data-soil",
+      "colId": "greenhouse-collection",
+      "containerId": "iot-folder",
+      "name": "Send Soil Moisture Data",
+      "url": "{{baseURL}}/iot/sensor-data",
+      "method": "POST", 
+      "sortNum": 50000,
+      "created": "2025-07-09T12:00:00.000Z",
+      "modified": "2025-07-09T12:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"deviceId\": \"ESP32_003\",\n  \"sensorType\": \"SOIL_MOISTURE\",\n  \"soilMoisture\": 45.2,\n  \"greenhouseId\": \"greenhouse-001\",\n  \"location\": \"Main Greenhouse\"\n}",
+        "form": []
+      },
+      "tests": []
+    },
+    {
+      "_id": "device-control",
+      "colId": "greenhouse-collection",
+      "containerId": "iot-folder",
+      "name": "Device Control",
+      "url": "{{baseURL}}/iot/device-control",
+      "method": "POST",
+      "sortNum": 60000,
+      "created": "2025-07-09T12:00:00.000Z",
+      "modified": "2025-07-09T12:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type", 
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"deviceId\": \"RELAY_001\",\n  \"command\": \"toggle\",\n  \"value\": true,\n  \"greenhouseId\": \"greenhouse-001\"\n}",
+        "form": []
+      },
+      "tests": []
+    },
+    {
+      "_id": "get-latest-sensors",
+      "colId": "greenhouse-collection",
+      "containerId": "sensors-folder",
+      "name": "Get Latest Sensor Readings",
+      "url": "{{baseURL}}/sensors/latest/greenhouse-001",
+      "method": "GET",
+      "sortNum": 70000,
+      "created": "2025-07-09T12:00:00.000Z",
+      "modified": "2025-07-09T12:00:00.000Z",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{authToken}}"
+        }
+      ],
+      "params": [],
+      "tests": []
+    },
+    {
+      "_id": "get-historical-sensors",
+      "colId": "greenhouse-collection",
+      "containerId": "sensors-folder", 
+      "name": "Get Historical Sensor Data",
+      "url": "{{baseURL}}/sensors/historical/greenhouse-001?hours=24&sensorType=DHT11",
+      "method": "GET",
+      "sortNum": 80000,
+      "created": "2025-07-09T12:00:00.000Z",
+      "modified": "2025-07-09T12:00:00.000Z",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{authToken}}"
+        }
+      ],
+      "params": [
+        {
+          "name": "hours",
+          "value": "24",
+          "isPath": false
+        },
+        {
+          "name": "sensorType", 
+          "value": "DHT11",
+          "isPath": false
+        }
+      ],
+      "tests": []
+    },
+    {
+      "_id": "get-alerts",
+      "colId": "greenhouse-collection",
+      "containerId": "alerts-folder",
+      "name": "Get Alerts",
+      "url": "{{baseURL}}/alerts/greenhouse-001",
+      "method": "GET",
+      "sortNum": 90000,
+      "created": "2025-07-09T12:00:00.000Z",
+      "modified": "2025-07-09T12:00:00.000Z",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{authToken}}"
+        }
+      ],
+      "params": [],
+      "tests": []
+    },
+    {
+      "_id": "get-devices",
+      "colId": "greenhouse-collection",
+      "containerId": "devices-folder",
+      "name": "Get Devices",
+      "url": "{{baseURL}}/devices/greenhouse-001",
+      "method": "GET",
+      "sortNum": 100000,
+      "created": "2025-07-09T12:00:00.000Z",
+      "modified": "2025-07-09T12:00:00.000Z", 
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{authToken}}"
+        }
+      ],
+      "params": [],
+      "tests": []
+    }
+  ]
+}

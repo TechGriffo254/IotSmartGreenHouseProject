@@ -1,0 +1,24 @@
+{
+  "client": "Thunder Client",
+  "environmentName": "Greenhouse IoT Development",
+  "dateExported": "2025-07-09T12:00:00.000Z",
+  "version": "1.0",
+  "variables": [
+    {
+      "name": "baseURL",
+      "value": "http://localhost:5000/api"
+    },
+    {
+      "name": "authToken", 
+      "value": ""
+    },
+    {
+      "name": "greenhouseId",
+      "value": "greenhouse-001"
+    },
+    {
+      "name": "deviceId",
+      "value": "ESP32_001"
+    }
+  ]
+}

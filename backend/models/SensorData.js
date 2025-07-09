@@ -9,7 +9,7 @@ const sensorDataSchema = new mongoose.Schema({
   sensorType: {
     type: String,
     required: true,
-    enum: ['DHT11', 'LDR', 'SOIL_MOISTURE']
+    enum: ['DHT11', 'LDR', 'SOIL_MOISTURE', 'ULTRASONIC']
   },
   // DHT11 sensor data
   temperature: {
@@ -26,13 +26,17 @@ const sensorDataSchema = new mongoose.Schema({
   lightIntensity: {
     type: Number,
     min: 0,
-    max: 1024
+    max: 10000  // Increased for raw ADC values
   },
-  // Soil moisture sensor data
+  // Soil moisture sensor data (raw ADC values)
   soilMoisture: {
     type: Number,
     min: 0,
-    max: 100
+    max: 4095  // ESP32 ADC max value
+  },
+  // Custom value for other sensors like ultrasonic
+  customValue: {
+    type: Number
   },
   timestamp: {
     type: Date,

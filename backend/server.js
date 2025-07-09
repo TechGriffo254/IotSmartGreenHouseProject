@@ -20,8 +20,13 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: "http://localhost:3000",
-    methods: ["GET", "POST"]
-  }
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  allowEIO3: true,
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 // Middleware
@@ -47,7 +52,9 @@ const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  // Skip rate limiting in development to avoid proxy issues
+  skip: (req) => process.env.NODE_ENV === 'development'
 });
 app.use(limiter);
 
@@ -109,16 +116,47 @@ mongoose.connection.on('disconnected', () => {
 });
 
 // Socket.IO connection handling
+// Socket.IO connection handling with authentication
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth.token;
+    if (!token) {
+      return next(new Error('Authentication token required'));
+    }
+    
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Attach user info to socket
+    socket.userId = decoded.userId;
+    socket.username = decoded.username;
+    socket.role = decoded.role;
+    
+    console.log(`Socket authentication successful for user: ${decoded.username}`);
+    next();
+  } catch (error) {
+    console.log('Socket authentication failed:', error.message);
+    next(new Error('Authentication failed'));
+  }
+});
+
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+  console.log(`Client connected: ${socket.id} (User: ${socket.username})`);
   
   socket.on('join-greenhouse', (greenhouseId) => {
     socket.join(`greenhouse-${greenhouseId}`);
-    console.log(`Client ${socket.id} joined greenhouse ${greenhouseId}`);
+    console.log(`Client ${socket.id} (${socket.username}) joined greenhouse ${greenhouseId}`);
+    
+    // Send confirmation back to client
+    socket.emit('greenhouse-joined', { 
+      greenhouseId, 
+      message: 'Successfully joined greenhouse',
+      timestamp: new Date().toISOString()
+    });
   });
 
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+  socket.on('disconnect', (reason) => {
+    console.log(`Client disconnected: ${socket.id} (${socket.username}) - Reason: ${reason}`);
   });
 });
 

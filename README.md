@@ -94,10 +94,17 @@ A comprehensive, production-ready IoT greenhouse monitoring and control system f
 - **React Hot Toast** - Beautiful notifications
 - **Date-fns** - Modern date utility library
 
-### IoT & Simulation
-- **ESP32 Simulator** - Multi-device simulation framework
-- **WebSocket Client** - Real-time device communication
-- **HTTP/HTTPS** - RESTful API communication
+### IoT & Hardware Integration
+- **ESP32/Arduino** - Real hardware sensor data collection
+- **DHT11/DHT22** - Temperature and humidity sensors
+- **Soil Moisture Sensors** - Real-time soil condition monitoring
+- **LDR/Light Sensors** - Ambient light level detection
+- **Ultrasonic Sensors** - Water level monitoring
+- **Relay Modules** - Device control (pumps, fans, lights)
+- **Servo Motors** - Window/vent control automation
+- **Production-Ready Arduino Code** - Copy-paste ready for hardware deployment
+- **HTTP/HTTPS** - RESTful API communication with backend
+- **WebSocket** - Real-time device control and updates
 - **Modular sensor framework** - Extensible sensor types
 
 ### DevOps & Deployment
@@ -179,22 +186,18 @@ npm install
 npm start
 ```
 
-### 4. IoT Simulation Setup
-```bash
-# Open new terminal and navigate to simulation
-cd iot-simulation
-
-# Install dependencies
-npm install
-
-# Start ESP32 simulator
-npm start
-```
-
-### 5. Access Application
+### 4. Access Application
 - **Frontend**: [http://localhost:3000](http://localhost:3000)
 - **Backend API**: [http://localhost:5000](http://localhost:5000)
 - **API Health**: [http://localhost:5000/api/health](http://localhost:5000/api/health)
+
+### 4. Arduino Hardware Setup
+For real hardware integration:
+1. **Upload the Arduino code** to your ESP32/Arduino Uno
+2. **Configure WiFi credentials** in the Arduino code
+3. **Connect sensors** according to the pin configuration
+4. **Monitor Serial output** to verify connectivity
+5. **View real-time data** in the web dashboard
 
 ## 🌐 Production Deployment
 
@@ -381,23 +384,53 @@ This system is designed with NO hardcoded sensor threshold values. All alert thr
 - `alert_created` - New alert created
 - `alert_updated` - Alert status updated
 
-## 🤖 IoT Device Simulation
+## 🔌 Arduino Hardware Integration
 
-The project includes comprehensive IoT device simulation:
+This project is designed for **real ESP32/Arduino hardware** collecting actual sensor data from your greenhouse environment.
 
-### Single Device Simulator
-```bash
-cd iot-simulation
-npm start
-```
+### Required Hardware
+- **ESP32 Development Board** (recommended) or Arduino with WiFi module
+- **DHT11/DHT22** - Temperature and humidity sensor
+- **Soil Moisture Sensor** - Analog soil moisture detection
+- **LDR (Light Dependent Resistor)** - Light level monitoring
+- **HC-SR04 Ultrasonic Sensor** - Water level measurement
+- **Relay Module** - For controlling water pumps, fans, etc.
+- **Servo Motor** - For window/vent automation
+- **Jumper wires and breadboard** for connections
 
-### Multi-Device ESP32 Simulator
-```bash
-cd iot-simulation
-npm run esp32
-```
+### Arduino Code Setup
 
-### Supported Sensors
+1. **Install Arduino IDE Libraries**:
+   ```
+   - ESP32 Board Package
+   - ArduinoJson by Benoit Blanchon
+   - DHT sensor library by Adafruit
+   - ESP32Servo by Kevin Harrington
+   ```
+
+2. **Use the Production-Ready Code**:
+   - Copy the complete code from `arduino/ESP32_Greenhouse_Production.ino`
+   - Update WiFi credentials in the code
+   - The backend URL is pre-configured for the live Koyeb deployment
+
+3. **Hardware Wiring**:
+   ```
+   DHT11 Data Pin    → GPIO 4
+   Soil Moisture     → GPIO 34 (Analog)
+   LDR Light Sensor  → GPIO 35 (Analog)
+   Ultrasonic Trig   → GPIO 12
+   Ultrasonic Echo   → GPIO 14
+   Water Pump Relay  → GPIO 26
+   Window Servo      → GPIO 27
+   ```
+
+4. **Upload and Monitor**:
+   - Select your ESP32 board in Arduino IDE
+   - Upload the code
+   - Open Serial Monitor (115200 baud)
+   - Watch real-time data being sent to the backend!
+
+### Supported Real Sensors
 - **DHT11**: Temperature and humidity
 - **LDR**: Light intensity
 - **Soil Moisture**: Soil moisture level
@@ -442,11 +475,19 @@ cd backend
 npm test
 ```
 
-### IoT Simulation Testing
-```bash
-cd iot-simulation
-npm test
-```
+### Arduino Hardware Testing
+
+1. **Upload Arduino Code**:
+   ```bash
+   # Use Arduino IDE to upload ESP32_Greenhouse_Production.ino
+   # Monitor Serial output at 115200 baud
+   ```
+
+2. **Verify Data Flow**:
+   ```bash
+   # Check backend logs for incoming sensor data
+   curl https://open-lauryn-ina-9662925b.koyeb.app/api/sensor-data
+   ```
 
 ## 📈 Performance Optimization
 

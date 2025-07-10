@@ -222,7 +222,32 @@ For real hardware integration:
 5. **Set environment variables** (see Environment Configuration)
 6. **Deploy** and get your production URL
 
-#### Option 2: Deploy to Heroku
+#### Option 2: Deploy Frontend to Vercel (Recommended for Frontend)
+```bash
+# Install Vercel CLI
+npm install -g vercel
+
+# Login to Vercel
+vercel login
+
+# Navigate to frontend directory
+cd frontend
+
+# Deploy (follow prompts)
+vercel --prod
+```
+
+**Vercel Configuration:**
+- **Root Directory**: `frontend`
+- **Build Command**: `npm run build`
+- **Output Directory**: `build`
+- **Environment Variables**: Set in Vercel dashboard
+  ```
+  REACT_APP_API_URL=https://open-lauryn-ina-9662925b.koyeb.app
+  REACT_APP_WS_URL=https://open-lauryn-ina-9662925b.koyeb.app
+  ```
+
+#### Option 3: Deploy Backend to Heroku
 ```bash
 # Install Heroku CLI
 npm install -g heroku
@@ -242,7 +267,7 @@ heroku config:set JWT_SECRET=your_jwt_secret
 git push heroku main
 ```
 
-#### Option 3: Deploy to DigitalOcean/AWS/GCP
+#### Option 4: Deploy to DigitalOcean/AWS/GCP
 See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed cloud deployment guides.
 
 ### Production Checklist

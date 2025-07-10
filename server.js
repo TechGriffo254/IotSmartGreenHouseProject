@@ -20,7 +20,14 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: process.env.NODE_ENV === 'production' 
-      ? ["https://open-lauryn-ina-9662925b.koyeb.app", "https://localhost:3000", "http://localhost:3000", "*"]
+      ? [
+          "https://iot-smart-green-house-project.vercel.app",
+          "https://iot-smart-green-house-pro-git-ef3dd7-mudenyo-griffinss-projects.vercel.app",
+          "https://lot-smart-green-house-project-6dqsmgcos.vercel.app",
+          "https://open-lauryn-ina-9662925b.koyeb.app", 
+          "https://localhost:3000", 
+          "http://localhost:3000"
+        ]
       : ["http://localhost:3000"],
     methods: ["GET", "POST"],
     credentials: true
@@ -35,7 +42,14 @@ const io = socketIo(server, {
 app.use(helmet());
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://open-lauryn-ina-9662925b.koyeb.app', 'https://localhost:3000', 'http://localhost:3000', '*'] 
+    ? [
+        'https://iot-smart-green-house-project.vercel.app',
+        'https://iot-smart-green-house-pro-git-ef3dd7-mudenyo-griffinss-projects.vercel.app',
+        'https://lot-smart-green-house-project-6dqsmgcos.vercel.app',
+        'https://open-lauryn-ina-9662925b.koyeb.app', 
+        'https://localhost:3000', 
+        'http://localhost:3000'
+      ] 
     : ['http://localhost:3000'],
   credentials: true
 }));

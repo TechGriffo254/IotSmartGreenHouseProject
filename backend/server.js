@@ -22,6 +22,9 @@ const allowedOrigins = [
   'http://localhost:3000',
   'https://localhost:3000',
   'https://iot-smart-green-house-project.vercel.app', // Live Vercel URL
+  'https://iot-smart-green-house-pro-git-ef3dd7-mudenyo-griffinss-projects.vercel.app',
+  'https://lot-smart-green-house-project-6dqsmgcos.vercel.app',
+  'https://open-lauryn-ina-9662925b.koyeb.app',
   'https://iot-smart-green-house-project-git-main.vercel.app', // Git branch deployments
   'https://iot-smart-green-house-project-*.vercel.app', // Preview deployments
   // Add more domains as needed

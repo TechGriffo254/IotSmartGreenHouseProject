@@ -37,11 +37,6 @@ const Settings = () => {
     maintenanceMode: false
   });
 
-  const [deviceSettings, setDeviceSettings] = useState({
-    autoControl: false,
-    controlSensitivity: 'medium'
-  });
-
   const loadSettings = useCallback(async () => {
     try {
       setSettingsLoading(true);
@@ -72,9 +67,6 @@ const Settings = () => {
         setSystemSettings(settings.systemSettings);
       }
 
-      if (settings.deviceSettings) {
-        setDeviceSettings(settings.deviceSettings);
-      }
     } catch (error) {
       console.error('Error loading settings:', error);
       toast.error('Failed to load settings');
@@ -152,20 +144,6 @@ const Settings = () => {
     } catch (error) {
       console.error('Error saving system settings:', error);
       toast.error('Failed to update system settings');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeviceSettingsSave = async () => {
-    try {
-      setLoading(true);
-      const greenhouseId = user?.greenhouseAccess?.[0]?.greenhouseId || 'default';
-      await apiService.updateDeviceSettings(greenhouseId, deviceSettings);
-      toast.success('Device settings updated successfully');
-    } catch (error) {
-      console.error('Error saving device settings:', error);
-      toast.error('Failed to update device settings');
     } finally {
       setLoading(false);
     }

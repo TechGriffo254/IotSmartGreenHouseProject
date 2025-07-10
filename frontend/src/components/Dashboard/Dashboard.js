@@ -9,13 +9,11 @@ import AlertSystem from './AlertSystem';
 import Analytics from './Analytics';
 import Settings from './Settings';
 import { useSocket } from '../../context/SocketContext';
-import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 
 const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
   const { setSensorData, setAlerts, setDevices } = useSocket();
 
   // Load initial data

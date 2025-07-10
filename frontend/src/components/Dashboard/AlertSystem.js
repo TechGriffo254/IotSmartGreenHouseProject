@@ -331,7 +331,7 @@ const AlertSystem = () => {
         
         <div className="mt-4 pt-4 border-t border-gray-200">
           <p className="text-sm text-gray-600">
-            Configure alert thresholds in the <a href="#" className="text-blue-600 hover:text-blue-800">Settings</a> page. 
+            Configure alert thresholds in the <button type="button" className="text-blue-600 hover:text-blue-800 underline bg-transparent border-none p-0 cursor-pointer">Settings</button> page. 
             Alerts will be triggered when sensor readings exceed these values.
           </p>
         </div>

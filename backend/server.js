@@ -17,13 +17,27 @@ const settingsRoutes = require('./routes/settingsRoutes');
 
 const app = express();
 const server = http.createServer(app);
+// CORS origins - including live Vercel domain
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://localhost:3000',
+  'https://iot-smart-green-house-project.vercel.app', // Live Vercel URL
+  'https://iot-smart-green-house-project-git-main.vercel.app', // Git branch deployments
+  'https://iot-smart-green-house-project-*.vercel.app', // Preview deployments
+  // Add more domains as needed
+];
+
+// Add environment-specific origins
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 const io = socketIo(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? ["https://your-koyeb-app-name.koyeb.app", "https://localhost:3000", "http://localhost:3000"]
-      : ["http://localhost:3000"],
-    methods: ["GET", "POST"],
-    credentials: true
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
   },
   allowEIO3: true,
   transports: ['websocket', 'polling'],
@@ -32,12 +46,39 @@ const io = socketIo(server, {
 });
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      connectSrc: ["'self'", ...allowedOrigins],
+    },
+  },
+}));
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-koyeb-app-name.koyeb.app', 'https://localhost:3000', 'http://localhost:3000'] 
-    : ['http://localhost:3000'],
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // For development, be more permissive
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    
+    const msg = 'CORS policy violation. Origin not allowed: ' + origin;
+    return callback(new Error(msg), false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Authorization']
 }));
 
 // Configure trust proxy more securely for development

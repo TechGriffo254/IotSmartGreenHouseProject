@@ -35,10 +35,13 @@
     }
   ],
   "env": {
-    "REACT_APP_API_URL": "https://open-lauryn-ina-9662925b.koyeb.app",
+    "REACT_APP_API_URL": "https://open-lauryn-ina-9662925b.koyeb.app/api",
     "REACT_APP_WS_URL": "https://open-lauryn-ina-9662925b.koyeb.app",
-    "REACT_APP_BACKEND_URL": "https://open-lauryn-ina-9662925b.koyeb.app"
+    "REACT_APP_BACKEND_URL": "https://open-lauryn-ina-9662925b.koyeb.app",
+    "REACT_APP_ENVIRONMENT": "production",
+    "GENERATE_SOURCEMAP": "false"
   },
+  "functions": {},
   "buildCommand": "npm run build",
   "devCommand": "npm start",
   "installCommand": "npm install",

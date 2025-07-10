@@ -44,17 +44,36 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
+      console.log('🔐 Attempting login with:', { email: credentials.email });
+      
       const response = await api.post('/auth/login', credentials);
+      console.log('🔐 Login response:', response.data);
+      
       const { token: newToken, user: userData } = response.data;
       
+      if (!newToken) {
+        throw new Error('No token received from server');
+      }
+      
       localStorage.setItem('token', newToken);
+      localStorage.setItem('user', JSON.stringify(userData));
       setToken(newToken);
       setUser(userData);
       
-      toast.success('Login successful!');
-      return { success: true };
+      toast.success(`Welcome back, ${userData.username || userData.email}!`);
+      return { success: true, user: userData };
     } catch (error) {
-      const message = error.response?.data?.message || 'Login failed';
+      console.error('🔐 Login error:', error);
+      
+      let message = 'Login failed';
+      if (error.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error.message) {
+        message = error.message;
+      } else if (error.code === 'NETWORK_ERROR') {
+        message = 'Network error. Please check your connection.';
+      }
+      
       toast.error(message);
       return { success: false, message };
     }
@@ -62,17 +81,36 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
+      console.log('📝 Attempting registration with:', { email: userData.email });
+      
       const response = await api.post('/auth/register', userData);
+      console.log('📝 Registration response:', response.data);
+      
       const { token: newToken, user: newUser } = response.data;
       
+      if (!newToken) {
+        throw new Error('No token received from server');
+      }
+      
       localStorage.setItem('token', newToken);
+      localStorage.setItem('user', JSON.stringify(newUser));
       setToken(newToken);
       setUser(newUser);
       
-      toast.success('Registration successful!');
-      return { success: true };
+      toast.success(`Welcome, ${newUser.username || newUser.email}!`);
+      return { success: true, user: newUser };
     } catch (error) {
-      const message = error.response?.data?.message || 'Registration failed';
+      console.error('📝 Registration error:', error);
+      
+      let message = 'Registration failed';
+      if (error.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error.message) {
+        message = error.message;
+      } else if (error.code === 'NETWORK_ERROR') {
+        message = 'Network error. Please check your connection.';
+      }
+      
       toast.error(message);
       return { success: false, message };
     }

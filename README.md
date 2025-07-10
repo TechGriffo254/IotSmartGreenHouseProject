@@ -10,6 +10,7 @@ A comprehensive, production-ready IoT greenhouse monitoring and control system f
 
 ## 🌟 Live Demo
 
+- **Frontend Web App**: [https://iot-smart-green-house-project.vercel.app/](https://iot-smart-green-house-project.vercel.app/)
 - **Backend API**: [https://open-lauryn-ina-9662925b.koyeb.app/](https://open-lauryn-ina-9662925b.koyeb.app/)
 - **API Health**: [https://open-lauryn-ina-9662925b.koyeb.app/api/health](https://open-lauryn-ina-9662925b.koyeb.app/api/health)
 - **GitHub Repository**: [TechGriffo254/IotSmartGreenHouseProject](https://github.com/TechGriffo254/IotSmartGreenHouseProject)
@@ -202,8 +203,9 @@ For real hardware integration:
 ## 🌐 Production Deployment
 
 ### Live Production Environment
+- **Frontend Web App**: [https://iot-smart-green-house-project.vercel.app/](https://iot-smart-green-house-project.vercel.app/)
 - **Backend API**: [https://open-lauryn-ina-9662925b.koyeb.app/](https://open-lauryn-ina-9662925b.koyeb.app/)
-- **Deployment Platform**: Koyeb Cloud
+- **Deployment Platforms**: Vercel (Frontend) + Koyeb (Backend)
 - **Database**: MongoDB Atlas (Production Cluster)
 - **Environment**: Production-optimized with security hardening
 
@@ -242,10 +244,11 @@ vercel --prod
 - **Build Command**: `npm run build`
 - **Output Directory**: `build`
 - **Environment Variables**: Set in Vercel dashboard
-  ```
-  REACT_APP_API_URL=https://open-lauryn-ina-9662925b.koyeb.app
+  ```env
+  REACT_APP_API_URL=https://open-lauryn-ina-9662925b.koyeb.app/api
   REACT_APP_WS_URL=https://open-lauryn-ina-9662925b.koyeb.app
   ```
+- **Live URL**: [https://iot-smart-green-house-project.vercel.app/](https://iot-smart-green-house-project.vercel.app/)
 
 #### Option 3: Deploy Backend to Heroku
 ```bash
@@ -1041,6 +1044,34 @@ echo $JWT_SECRET
 # Clear browser localStorage
 // In browser console:
 localStorage.clear()
+```
+
+#### 6. Vercel Authentication Issues
+**Problem**: Login fails on Vercel deployment but works locally
+**Solution**:
+```bash
+# 1. Check Environment Variables in Vercel Dashboard
+# Make sure these are set correctly:
+REACT_APP_API_URL=https://open-lauryn-ina-9662925b.koyeb.app/api
+REACT_APP_WS_URL=https://open-lauryn-ina-9662925b.koyeb.app
+
+# 2. Verify CORS settings in backend server.js
+# Ensure your Vercel URL is in allowedOrigins array
+
+# 3. Check browser console for CORS errors
+# Open Developer Tools → Console tab
+
+# 4. Test API directly
+curl -X POST https://open-lauryn-ina-9662925b.koyeb.app/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password"}'
+```
+
+**Common fixes:**
+- Redeploy frontend after environment variable changes
+- Clear browser cache and localStorage
+- Ensure backend includes your Vercel domain in CORS
+- Check that API calls use `/api` path correctly
 ```
 
 ### Performance Optimization

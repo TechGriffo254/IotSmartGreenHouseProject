@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSocket } from '../../context/SocketContext';
 import { useAuth } from '../../context/AuthContext';
 import SensorCard from '../Sensors/SensorCard';
@@ -6,7 +6,6 @@ import DeviceCard from '../Devices/DeviceCard';
 import AlertPanel from '../Alerts/AlertPanel';
 import QuickStats from '../common/QuickStats';
 import { Thermometer, Droplets, Sun, Sprout, Zap, AlertTriangle } from 'lucide-react';
-import axios from 'axios';
 import apiService from '../../utils/api';
 
 const Overview = () => {
@@ -20,9 +19,19 @@ const Overview = () => {
     criticalAlerts: 0
   });
 
+  const loadThresholds = useCallback(async () => {
+    try {
+      const greenhouseId = user?.greenhouseAccess?.[0]?.greenhouseId || 'default';
+      const response = await apiService.getSettings(greenhouseId);
+      setThresholds(response.data.alertThresholds);
+    } catch (error) {
+      console.error('Error loading thresholds:', error);
+    }
+  }, [user]);
+
   useEffect(() => {
     loadThresholds();
-  }, []);
+  }, [loadThresholds]);
 
   useEffect(() => {
     // Update stats when data changes
@@ -40,16 +49,6 @@ const Overview = () => {
       criticalAlerts
     });
   }, [devices, alerts]);
-
-  const loadThresholds = async () => {
-    try {
-      const greenhouseId = user?.greenhouseAccess?.[0]?.greenhouseId || 'default';
-      const response = await apiService.getSettings(greenhouseId);
-      setThresholds(response.data.alertThresholds);
-    } catch (error) {
-      console.error('Error loading thresholds:', error);
-    }
-  };
 
   // Helper function to check if a value is within threshold range
   const isValueOptimal = (sensorType, field, value) => {

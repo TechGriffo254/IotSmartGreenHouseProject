@@ -1,23 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { useSocket } from '../../context/SocketContext';
+import React, { useState, useEffect, useCallback } from 'react';
 import SensorChart from '../Sensors/SensorChart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, Calendar, Download, Filter } from 'lucide-react';
+import { TrendingUp, Download } from 'lucide-react';
 import axios from 'axios';
 
 const Analytics = () => {
-  const { sensorData } = useSocket();
   const [historicalData, setHistoricalData] = useState([]);
   const [deviceStats, setDeviceStats] = useState(null);
   const [sensorStats, setSensorStats] = useState(null);
   const [timeRange, setTimeRange] = useState('24');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    loadAnalyticsData();
-  }, [timeRange]);
-
-  const loadAnalyticsData = async () => {
+  const loadAnalyticsData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -44,7 +38,11 @@ const Analytics = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeRange]);
+
+  useEffect(() => {
+    loadAnalyticsData();
+  }, [loadAnalyticsData]);
 
   const formatChartData = () => {
     const groupedData = {};

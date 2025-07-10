@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useSocket } from '../../context/SocketContext';
+import React, { useState, useEffect, useCallback } from 'react';
 import AlertPanel from '../Alerts/AlertPanel';
 import { AlertTriangle, CheckCircle, Filter, Download, Trash2 } from 'lucide-react';
 import axios from 'axios';
 import { format } from 'date-fns';
 
 const AlertSystem = () => {
-  const { alerts: realtimeAlerts } = useSocket();
   const [allAlerts, setAllAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all'); // all, active, resolved
@@ -14,24 +12,7 @@ const AlertSystem = () => {
   const [alertStats, setAlertStats] = useState(null);
   const [thresholds, setThresholds] = useState(null);
 
-  useEffect(() => {
-    loadAlerts();
-    loadAlertStats();
-    loadThresholds();
-  }, [filter, severityFilter]);
-
-  const loadThresholds = async () => {
-    try {
-      const response = await axios.get('/api/settings/greenhouse-001');
-      if (response.data.alertThresholds) {
-        setThresholds(response.data.alertThresholds);
-      }
-    } catch (error) {
-      console.error('Error loading thresholds:', error);
-    }
-  };
-
-  const loadAlerts = async () => {
+  const loadAlerts = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -49,9 +30,9 @@ const AlertSystem = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
 
-  const loadAlertStats = async () => {
+  const loadAlertStats = useCallback(async () => {
     try {
       const response = await axios.get('/api/alerts/stats/greenhouse-001');
       if (response.data.success) {
@@ -60,7 +41,24 @@ const AlertSystem = () => {
     } catch (error) {
       console.error('Error loading alert stats:', error);
     }
-  };
+  }, []);
+
+  const loadThresholds = useCallback(async () => {
+    try {
+      const response = await axios.get('/api/settings/greenhouse-001');
+      if (response.data.alertThresholds) {
+        setThresholds(response.data.alertThresholds);
+      }
+    } catch (error) {
+      console.error('Error loading thresholds:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAlerts();
+    loadAlertStats();
+    loadThresholds();
+  }, [loadAlerts, loadAlertStats, loadThresholds]);
 
   const filteredAlerts = allAlerts.filter(alert => {
     if (severityFilter !== 'all' && alert.severity !== severityFilter) {

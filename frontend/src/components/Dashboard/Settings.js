@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
-import { Save, User, Bell, Palette, Globe, Lock, Database, RefreshCw } from 'lucide-react';
+import { Save, User, Bell, Globe, Lock, Database, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import apiService from '../../utils/api';
 
@@ -42,12 +42,7 @@ const Settings = () => {
     controlSensitivity: 'medium'
   });
 
-  // Load settings from API on component mount
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       setSettingsLoading(true);
       const greenhouseId = user?.greenhouseAccess?.[0]?.greenhouseId || 'default';
@@ -86,7 +81,12 @@ const Settings = () => {
     } finally {
       setSettingsLoading(false);
     }
-  };
+  }, [user]);
+
+  // Load settings from API on component mount
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
 
   const tabs = [
     { id: 'profile', name: 'Profile', icon: User },

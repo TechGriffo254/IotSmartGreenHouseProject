@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }) => {
     const checkAuth = async () => {
       if (token) {
         try {
-          const response = await api.get('/auth/me');
+          const response = await api.get('/api/auth/me');
           setUser(response.data.data);
         } catch (error) {
           console.error('Auth check failed:', error);
@@ -44,9 +44,9 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
-      console.log('🔐 Attempting login with:', { email: credentials.email });
+      console.log('🔐 Attempting login with:', { username: credentials.username });
       
-      const response = await api.post('/auth/login', credentials);
+      const response = await api.post('/api/auth/login', credentials);
       console.log('🔐 Login response:', response.data);
       
       const { token: newToken, user: userData } = response.data;
@@ -83,7 +83,7 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('📝 Attempting registration with:', { email: userData.email });
       
-      const response = await api.post('/auth/register', userData);
+      const response = await api.post('/api/auth/register', userData);
       console.log('📝 Registration response:', response.data);
       
       const { token: newToken, user: newUser } = response.data;
@@ -125,7 +125,7 @@ export const AuthProvider = ({ children }) => {
 
   const updateProfile = async (profileData) => {
     try {
-      const response = await api.put('/auth/profile', profileData);
+      const response = await api.put('/api/auth/profile', profileData);
       setUser(response.data.data);
       toast.success('Profile updated successfully');
       return { success: true };
@@ -138,7 +138,7 @@ export const AuthProvider = ({ children }) => {
 
   const changePassword = async (passwordData) => {
     try {
-      await api.put('/auth/password', passwordData);
+      await api.put('/api/auth/password', passwordData);
       toast.success('Password updated successfully');
       return { success: true };
     } catch (error) {
@@ -150,7 +150,7 @@ export const AuthProvider = ({ children }) => {
 
   const refreshToken = async () => {
     try {
-      const response = await api.post('/auth/refresh');
+      const response = await api.post('/api/auth/refresh');
       const { token: newToken, user: userData } = response.data;
       
       localStorage.setItem('token', newToken);

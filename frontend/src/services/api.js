@@ -20,7 +20,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // Important for CORS with credentials
+  // withCredentials: true, // Temporarily disabled for testing
 });
 
 // Request interceptor to add auth token
@@ -59,26 +59,33 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('📥 API Error:', {
-      url: error.config?.url,
+      message: error.message,
+      code: error.code,
       status: error.response?.status,
       statusText: error.response?.statusText,
-      message: error.message,
-      data: error.response?.data
+      url: error.config?.url,
+      baseURL: error.config?.baseURL,
+      // Additional debugging for network errors
+      isNetworkError: error.code === 'NETWORK_ERR' || error.message.includes('Network Error'),
+      isCorsError: error.message.includes('CORS') || error.code === 'ERR_BLOCKED_BY_CLIENT',
+      responseData: error.response?.data
     });
 
-    if (error.response?.status === 401) {
-      // Token expired or invalid
-      console.log('🔒 Authentication failed, clearing token');
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      
-      // Only redirect if not already on login page
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
+    // Handle different types of errors
+    if (error.response) {
+      // Server responded with error status
+      const errorMessage = error.response.data?.message || 'Server error occurred';
+      console.error('Server Error:', errorMessage);
+      throw new Error(errorMessage);
+    } else if (error.request) {
+      // Request was made but no response received
+      console.error('Network Error - No response received:', error.request);
+      throw new Error('Network error - Please check your internet connection and try again');
+    } else {
+      // Something else happened
+      console.error('Request Setup Error:', error.message);
+      throw new Error(error.message || 'An unexpected error occurred');
     }
-    
-    return Promise.reject(error);
   }
 );
 

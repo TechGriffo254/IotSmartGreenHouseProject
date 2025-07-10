@@ -2,13 +2,16 @@ import axios from 'axios';
 
 // Get API URL from environment with fallback
 const getAPIUrl = () => {
-  // For Vercel deployment
-  if (process.env.REACT_APP_API_URL) {
-    return process.env.REACT_APP_API_URL;
-  }
+  // For Vercel deployment - check multiple environment variable patterns
+  const apiUrl = process.env.REACT_APP_API_URL || 
+                 process.env.NEXT_PUBLIC_API_URL ||
+                 'https://open-lauryn-ina-9662925b.koyeb.app/api';
   
-  // Fallback to your live backend
-  return 'https://open-lauryn-ina-9662925b.koyeb.app/api';
+  console.log('🔗 Environment:', process.env.NODE_ENV);
+  console.log('🔗 All env vars:', Object.keys(process.env).filter(key => key.startsWith('REACT_APP')));
+  console.log('🔗 API URL:', apiUrl);
+  
+  return apiUrl;
 };
 
 console.log('🔗 API URL:', getAPIUrl()); // Debug log
@@ -16,11 +19,12 @@ console.log('🔗 API URL:', getAPIUrl()); // Debug log
 // Create axios instance with base configuration
 const api = axios.create({
   baseURL: getAPIUrl(),
-  timeout: 15000, // Increased timeout for Vercel cold starts
+  timeout: 30000, // Increased timeout for cold starts
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   },
-  // withCredentials: true, // Temporarily disabled for testing
+  // Remove credentials to avoid CORS preflight issues
 });
 
 // Request interceptor to add auth token

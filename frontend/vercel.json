@@ -1,6 +1,12 @@
 {
   "version": 2,
   "name": "greenhouse-frontend",
+  "env": {
+    "REACT_APP_API_URL": "https://open-lauryn-ina-9662925b.koyeb.app/api",
+    "REACT_APP_WS_URL": "https://open-lauryn-ina-9662925b.koyeb.app",
+    "REACT_APP_BACKEND_URL": "https://open-lauryn-ina-9662925b.koyeb.app",
+    "REACT_APP_ENVIRONMENT": "production"
+  },
   "builds": [
     {
       "src": "package.json",

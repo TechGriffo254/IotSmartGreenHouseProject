@@ -82,9 +82,9 @@ app.use(cors({
     const msg = 'CORS policy violation. Origin not allowed: ' + origin;
     return callback(new Error(msg), false);
   },
-  credentials: true,
+  credentials: false, // Disable credentials to simplify CORS
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   exposedHeaders: ['Authorization']
 }));
 
@@ -270,6 +270,32 @@ app.get('/api/health', (req, res) => {
       readyState: dbStatus,
       name: mongoose.connection.db?.databaseName || 'not connected'
     }
+  });
+});
+
+// Test endpoint for debugging CORS issues
+app.get('/api/test', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'API is reachable',
+    origin: req.headers.origin,
+    userAgent: req.headers['user-agent'],
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Test POST endpoint for debugging login issues
+app.post('/api/test-post', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'POST request successful',
+    receivedData: req.body,
+    headers: {
+      origin: req.headers.origin,
+      contentType: req.headers['content-type'],
+      authorization: req.headers.authorization ? 'Present' : 'Missing'
+    },
+    timestamp: new Date().toISOString()
   });
 });
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import SensorChart from '../Sensors/SensorChart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, Download } from 'lucide-react';
-import axios from 'axios';
+import api from '../../services/api';
 
 const Analytics = () => {
   const [historicalData, setHistoricalData] = useState([]);
@@ -16,25 +16,37 @@ const Analytics = () => {
       setLoading(true);
       
       // Load historical sensor data
-      const sensorResponse = await axios.get(`/api/sensors/historical/greenhouse-001?hours=${timeRange}`);
-      if (sensorResponse.data.success) {
-        setHistoricalData(sensorResponse.data.data);
+      const sensorResponse = await api.get(`/api/sensors/historical/greenhouse-001?hours=${timeRange}`);
+      if (sensorResponse.data && sensorResponse.data.success) {
+        setHistoricalData(sensorResponse.data.data || []);
+      } else {
+        console.warn('Historical data response format unexpected:', sensorResponse.data);
+        setHistoricalData([]);
       }
 
       // Load sensor statistics
-      const statsResponse = await axios.get(`/api/sensors/stats/greenhouse-001?hours=${timeRange}`);
-      if (statsResponse.data.success) {
-        setSensorStats(statsResponse.data.data);
+      const statsResponse = await api.get(`/api/sensors/stats/greenhouse-001?hours=${timeRange}`);
+      if (statsResponse.data && statsResponse.data.success) {
+        setSensorStats(statsResponse.data.data || []);
+      } else {
+        console.warn('Sensor stats response format unexpected:', statsResponse.data);
+        setSensorStats([]);
       }
 
       // Load device statistics
-      const deviceResponse = await axios.get('/api/devices/stats/greenhouse-001');
-      if (deviceResponse.data.success) {
-        setDeviceStats(deviceResponse.data.data);
+      const deviceResponse = await api.get('/api/devices/stats/greenhouse-001');
+      if (deviceResponse.data && deviceResponse.data.success) {
+        setDeviceStats(deviceResponse.data.data || null);
+      } else {
+        console.warn('Device stats response format unexpected:', deviceResponse.data);
+        setDeviceStats(null);
       }
 
     } catch (error) {
       console.error('Error loading analytics data:', error);
+      // Set defaults to prevent rendering errors
+      setHistoricalData([]);
+      setSensorStats([]);
     } finally {
       setLoading(false);
     }
@@ -45,51 +57,70 @@ const Analytics = () => {
   }, [loadAnalyticsData]);
 
   const formatChartData = () => {
+    if (!Array.isArray(historicalData) || historicalData.length === 0) {
+      return [];
+    }
+    
     const groupedData = {};
     
     historicalData.forEach(reading => {
-      const hour = new Date(reading.timestamp).getHours();
-      const key = `${hour}:00`;
-      
-      if (!groupedData[key]) {
-        groupedData[key] = { time: key, count: 0 };
+      if (!reading || !reading.timestamp) {
+        return; // Skip invalid entries
       }
       
-      groupedData[key].count++;
-      
-      if (reading.temperature !== undefined) {
-        groupedData[key].temperature = (groupedData[key].temperature || 0) + reading.temperature;
-      }
-      if (reading.humidity !== undefined) {
-        groupedData[key].humidity = (groupedData[key].humidity || 0) + reading.humidity;
-      }
-      if (reading.lightIntensity !== undefined) {
-        groupedData[key].lightIntensity = (groupedData[key].lightIntensity || 0) + reading.lightIntensity;
-      }
-      if (reading.soilMoisture !== undefined) {
-        groupedData[key].soilMoisture = (groupedData[key].soilMoisture || 0) + reading.soilMoisture;
+      try {
+        const hour = new Date(reading.timestamp).getHours();
+        const key = `${hour}:00`;
+        
+        if (!groupedData[key]) {
+          groupedData[key] = { time: key, count: 0 };
+        }
+        
+        groupedData[key].count++;
+        
+        if (reading.temperature !== undefined && reading.temperature !== null) {
+          groupedData[key].temperature = (groupedData[key].temperature || 0) + Number(reading.temperature);
+        }
+        if (reading.humidity !== undefined && reading.humidity !== null) {
+          groupedData[key].humidity = (groupedData[key].humidity || 0) + Number(reading.humidity);
+        }
+        if (reading.lightIntensity !== undefined && reading.lightIntensity !== null) {
+          groupedData[key].lightIntensity = (groupedData[key].lightIntensity || 0) + Number(reading.lightIntensity);
+        }
+        if (reading.soilMoisture !== undefined && reading.soilMoisture !== null) {
+          groupedData[key].soilMoisture = (groupedData[key].soilMoisture || 0) + Number(reading.soilMoisture);
+        }
+      } catch (error) {
+        console.error('Error processing sensor data entry:', error, reading);
       }
     });
 
     // Calculate averages
     return Object.values(groupedData).map(item => ({
       ...item,
-      temperature: item.temperature ? (item.temperature / item.count).toFixed(1) : undefined,
-      humidity: item.humidity ? (item.humidity / item.count).toFixed(1) : undefined,
-      lightIntensity: item.lightIntensity ? (item.lightIntensity / item.count).toFixed(0) : undefined,
-      soilMoisture: item.soilMoisture ? (item.soilMoisture / item.count).toFixed(1) : undefined
-    })).sort((a, b) => parseInt(a.time) - parseInt(b.time));
+      temperature: item.temperature !== undefined ? (item.temperature / item.count).toFixed(1) : "0",
+      humidity: item.humidity !== undefined ? (item.humidity / item.count).toFixed(1) : "0",
+      lightIntensity: item.lightIntensity !== undefined ? (item.lightIntensity / item.count).toFixed(0) : "0",
+      soilMoisture: item.soilMoisture !== undefined ? (item.soilMoisture / item.count).toFixed(1) : "0"
+    })).sort((a, b) => {
+      // Extract hour from time string (e.g., "14:00" → 14)
+      const hourA = parseInt(a.time.split(':')[0]);
+      const hourB = parseInt(b.time.split(':')[0]);
+      return hourA - hourB;
+    });
   };
 
   const getDeviceTypeData = () => {
-    if (!deviceStats) return [];
+    if (!deviceStats || !Array.isArray(deviceStats.byType) || deviceStats.byType.length === 0) {
+      return [];
+    }
     
     const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#8dd1e1'];
     
     return deviceStats.byType.map((item, index) => ({
-      name: item._id.replace('_', ' '),
-      value: item.totalDevices,
-      active: item.activeDevices,
+      name: item._id ? item._id.replace('_', ' ') : `Device Type ${index + 1}`,
+      value: item.totalDevices || 0,
+      active: item.activeDevices || 0,
       color: colors[index % colors.length]
     }));
   };
@@ -132,7 +163,7 @@ const Analytics = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Avg Temperature</p>
               <p className="text-2xl font-bold text-blue-600">
-                {sensorStats?.find(s => s._id === 'DHT11')?.avgTemperature?.toFixed(1) || '---'}°C
+                {(Array.isArray(sensorStats) && sensorStats.find(s => s?._id === 'DHT11')?.avgTemperature?.toFixed(1)) || '---'}°C
               </p>
             </div>
             <TrendingUp className="h-8 w-8 text-blue-600" />
@@ -144,7 +175,7 @@ const Analytics = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Avg Humidity</p>
               <p className="text-2xl font-bold text-green-600">
-                {sensorStats?.find(s => s._id === 'DHT11')?.avgHumidity?.toFixed(1) || '---'}%
+                {(Array.isArray(sensorStats) && sensorStats.find(s => s?._id === 'DHT11')?.avgHumidity?.toFixed(1)) || '---'}%
               </p>
             </div>
             <TrendingUp className="h-8 w-8 text-green-600" />
@@ -156,7 +187,7 @@ const Analytics = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Avg Light</p>
               <p className="text-2xl font-bold text-yellow-600">
-                {sensorStats?.find(s => s._id === 'LDR')?.avgLightIntensity?.toFixed(0) || '---'}
+                {(Array.isArray(sensorStats) && sensorStats.find(s => s?._id === 'LDR')?.avgLightIntensity?.toFixed(0)) || '---'}
               </p>
             </div>
             <TrendingUp className="h-8 w-8 text-yellow-600" />
@@ -168,7 +199,7 @@ const Analytics = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Avg Soil Moisture</p>
               <p className="text-2xl font-bold text-purple-600">
-                {sensorStats?.find(s => s._id === 'SOIL_MOISTURE')?.avgSoilMoisture?.toFixed(1) || '---'}%
+                {(Array.isArray(sensorStats) && sensorStats.find(s => s?._id === 'SOIL_MOISTURE')?.avgSoilMoisture?.toFixed(1)) || '---'}%
               </p>
             </div>
             <TrendingUp className="h-8 w-8 text-purple-600" />

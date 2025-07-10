@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AlertPanel from '../Alerts/AlertPanel';
 import { AlertTriangle, CheckCircle, Filter, Download, Trash2 } from 'lucide-react';
-import axios from 'axios';
+import api from '../../services/api';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
 
 const AlertSystem = () => {
   const [allAlerts, setAllAlerts] = useState([]);
@@ -21,7 +22,7 @@ const AlertSystem = () => {
         params.append('status', filter);
       }
       
-      const response = await axios.get(`/api/alerts/greenhouse-001?${params}`);
+      const response = await api.get(`/api/alerts/greenhouse-001?${params}`);
       if (response.data.success) {
         setAllAlerts(response.data.data);
       }
@@ -34,7 +35,7 @@ const AlertSystem = () => {
 
   const loadAlertStats = useCallback(async () => {
     try {
-      const response = await axios.get('/api/alerts/stats/greenhouse-001');
+      const response = await api.get('/api/alerts/stats/greenhouse-001');
       if (response.data.success) {
         setAlertStats(response.data.data);
       }
@@ -45,7 +46,7 @@ const AlertSystem = () => {
 
   const loadThresholds = useCallback(async () => {
     try {
-      const response = await axios.get('/api/settings/greenhouse-001');
+      const response = await api.get('/api/settings/greenhouse-001');
       if (response.data.alertThresholds) {
         setThresholds(response.data.alertThresholds);
       }
@@ -53,6 +54,24 @@ const AlertSystem = () => {
       console.error('Error loading thresholds:', error);
     }
   }, []);
+  
+  const deleteAlert = useCallback(async (alertId) => {
+    if (window.confirm('Are you sure you want to delete this alert?')) {
+      try {
+        setLoading(true);
+        const response = await api.delete(`/api/alerts/${alertId}`);
+        if (response.data.success) {
+          toast.success('Alert deleted successfully');
+          loadAlerts(); // Reload alerts after deletion
+        }
+      } catch (error) {
+        console.error('Error deleting alert:', error);
+        toast.error('Failed to delete alert');
+      } finally {
+        setLoading(false);
+      }
+    }
+  }, [loadAlerts]);
 
   useEffect(() => {
     loadAlerts();
@@ -244,7 +263,11 @@ const AlertSystem = () => {
                         </div>
                         
                         {!alert.isResolved && (
-                          <button className="ml-2 p-1 text-gray-400 hover:text-red-600">
+                          <button 
+                            className="ml-2 p-1 text-gray-400 hover:text-red-600"
+                            onClick={() => deleteAlert(alert._id)}
+                            aria-label="Delete alert"
+                          >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         )}

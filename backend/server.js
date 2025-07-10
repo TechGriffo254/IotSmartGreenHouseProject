@@ -63,7 +63,13 @@ app.use(cors({
     // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
     
+    // Check if origin is in allowed list
     if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Allow all Vercel deployments (more flexible for preview deployments)
+    if (origin && origin.includes('vercel.app')) {
       return callback(null, true);
     }
     
@@ -72,6 +78,7 @@ app.use(cors({
       return callback(null, true);
     }
     
+    console.log('CORS blocked origin:', origin);
     const msg = 'CORS policy violation. Origin not allowed: ' + origin;
     return callback(new Error(msg), false);
   },

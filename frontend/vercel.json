@@ -1,49 +1,8 @@
 {
-  "version": 2,
-  "name": "greenhouse-frontend",
-  "builds": [
+  "rewrites": [
     {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
-  ],
-  "routes": [
-    {
-      "src": "/static/(.*)",
-      "headers": {
-        "cache-control": "s-maxage=31536000,immutable"
-      },
-      "dest": "/static/$1"
-    },
-    {
-      "src": "/service-worker.js",
-      "headers": {
-        "cache-control": "s-maxage=0"
-      },
-      "dest": "/service-worker.js"
-    },
-    {
-      "src": "/sockjs-node/(.*)",
-      "dest": "/sockjs-node/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ],
-  "env": {
-    "REACT_APP_API_URL": "https://open-lauryn-ina-9662925b.koyeb.app/api",
-    "REACT_APP_WS_URL": "https://open-lauryn-ina-9662925b.koyeb.app",
-    "REACT_APP_BACKEND_URL": "https://open-lauryn-ina-9662925b.koyeb.app",
-    "REACT_APP_ENVIRONMENT": "production",
-    "GENERATE_SOURCEMAP": "false"
-  },
-  "functions": {},
-  "buildCommand": "npm run build",
-  "devCommand": "npm start",
-  "installCommand": "npm install",
-  "outputDirectory": "build"
+  ]
 }

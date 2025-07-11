@@ -9,7 +9,7 @@ const deviceControlSchema = new mongoose.Schema({
   deviceType: {
     type: String,
     required: true,
-    enum: ['FAN', 'WATER_PUMP', 'HEATER', 'LED_LIGHT', 'COOLING_SYSTEM', 'irrigation', 'ventilation', 'SERVO', 'WINDOW']
+    enum: ['FAN', 'WATER_PUMP', 'WATER_VALVE', 'HEATER', 'LED_LIGHT', 'COOLING_SYSTEM', 'irrigation', 'ventilation', 'SERVO', 'WINDOW']
   },
   deviceName: {
     type: String,

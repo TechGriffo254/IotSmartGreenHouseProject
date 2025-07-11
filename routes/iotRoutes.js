@@ -552,6 +552,106 @@ router.post('/old-format', async (req, res) => {
   }
 });
 
+// GET /api/iot/commands/:deviceId - Get commands for ESP32
+router.get('/commands/:deviceId', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    
+    // Get current device control status from database
+    const devices = await DeviceControl.find({ greenhouseId: 'greenhouse-001' });
+    
+    if (!devices || devices.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No commands available',
+        commands: []
+      });
+    }
+    
+    // Prepare commands based on device statuses
+    const commands = [];
+    
+    // Check for water pump command
+    const pumpDevice = devices.find(d => d.deviceType === 'WATER_PUMP');
+    if (pumpDevice) {
+      commands.push({
+        device: 'pump',
+        action: 'control',
+        state: pumpDevice.status === 'ON',
+        timestamp: new Date()
+      });
+    }
+    
+    // Check for water valve command
+    const valveDevice = devices.find(d => d.deviceType === 'WATER_VALVE');
+    if (valveDevice) {
+      commands.push({
+        device: 'valve',
+        action: 'control',
+        state: valveDevice.status === 'ON',
+        timestamp: new Date()
+      });
+    }
+    
+    // Check for fan command
+    const fanDevice = devices.find(d => d.deviceType === 'FAN');
+    if (fanDevice) {
+      commands.push({
+        device: 'fan',
+        action: 'control',
+        state: fanDevice.status === 'ON',
+        timestamp: new Date()
+      });
+    }
+    
+    // Check for light command
+    const lightDevice = devices.find(d => d.deviceType === 'LED_LIGHT');
+    if (lightDevice) {
+      commands.push({
+        device: 'light',
+        action: 'control',
+        state: lightDevice.status === 'ON',
+        timestamp: new Date()
+      });
+    }
+    
+    // Check for window command
+    const windowDevice = devices.find(d => d.deviceType === 'WINDOW');
+    if (windowDevice) {
+      commands.push({
+        device: 'window',
+        action: 'control',
+        state: windowDevice.status === 'OPEN',
+        timestamp: new Date()
+      });
+    }
+    
+    // Check for auto mode settings
+    const anyDevice = devices[0];
+    if (anyDevice) {
+      commands.push({
+        action: 'autoMode',
+        state: anyDevice.autoMode,
+        timestamp: new Date()
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `${commands.length} commands available`,
+      commands: commands
+    });
+
+  } catch (error) {
+    console.error('Error retrieving commands:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve commands',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
 // POST /api/iot/old-format - Keep the old endpoint for backward compatibility
 router.post('/old-format', async (req, res) => {
   try {
@@ -814,25 +914,23 @@ router.post('/legacy', async (req, res) => {
   }
 });
 
-// POST /api/iot/legacy - Legacy endpoint for older devices
-router.post('/legacy', async (req, res) => {
+// POST /api/iot/status - ESP32 reports current device status
+router.post('/status', async (req, res) => {
   try {
     const { 
-      deviceId, 
-      temperature, 
-      humidity, 
-      soilMoisture, 
-      lightIntensity, 
-      waterLevel, 
-      status, 
+      deviceId,
+      greenhouseId = 'greenhouse-001',
+      pumpState, 
+      valveState,
+      fanState,
+      windowState,
+      lightState,
       autoMode, 
-      greenhouseId = 'greenhouse-001' 
+      wifiConnected 
     } = req.body;
 
-    console.log('📡 Legacy data received from device:', deviceId);
-    console.log('📊 Legacy sensor data:', { temperature, humidity, soilMoisture, lightIntensity, waterLevel });
+    console.log('📡 ESP32 device status update received:', req.body);
 
-    // Validate required fields
     if (!deviceId) {
       return res.status(400).json({
         success: false,
@@ -840,161 +938,147 @@ router.post('/legacy', async (req, res) => {
       });
     }
 
-    // Ensure IoT devices exist in database
+    // Ensure devices exist in database
     await ensureIoTDevicesExist(greenhouseId);
 
-    // Store individual sensor readings
-    const sensorPromises = [];
+    // Get the Socket.IO instance
     const io = req.app.get('io');
 
-    // Temperature & Humidity (DHT11)
-    if (temperature !== undefined && humidity !== undefined && !isNaN(temperature) && !isNaN(humidity)) {
-      const dhtData = new SensorData({
-        greenhouseId,
-        sensorType: 'DHT11',
-        deviceId,
-        location: 'Main Greenhouse',
-        temperature: parseFloat(temperature),
-        humidity: parseFloat(humidity),
-        timestamp: new Date()
+    // Update pump status if provided
+    if (pumpState !== undefined) {
+      const pump = await DeviceControl.findOne({ 
+        deviceType: 'WATER_PUMP', 
+        greenhouseId 
       });
-      sensorPromises.push(dhtData.save());
-
-      // Emit real-time update
-      if (io) {
-        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
-          type: 'temperature',
-          value: parseFloat(temperature),
-          unit: '°C',
-          timestamp: new Date()
-        });
-        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
-          type: 'humidity',
-          value: parseFloat(humidity),
-          unit: '%',
-          timestamp: new Date()
-        });
+      
+      if (pump) {
+        pump.status = pumpState ? 'ON' : 'OFF';
+        await pump.save();
+        
+        if (io) {
+          io.to(`greenhouse-${greenhouseId}`).emit('deviceUpdate', {
+            deviceId: pump.deviceId,
+            deviceType: 'WATER_PUMP',
+            status: pump.status,
+            lastUpdate: new Date()
+          });
+        }
       }
     }
 
-    // Soil Moisture
-    if (soilMoisture !== undefined && !isNaN(soilMoisture)) {
-      const moistureData = new SensorData({
-        greenhouseId,
-        sensorType: 'SOIL_MOISTURE',
-        deviceId,
-        location: 'Main Greenhouse',
-        soilMoisture: parseInt(soilMoisture),
-        rawValue: parseInt(soilMoisture),
-        timestamp: new Date()
+    // Update valve status if provided - NEW
+    if (valveState !== undefined) {
+      const valve = await DeviceControl.findOne({ 
+        deviceType: 'WATER_VALVE', 
+        greenhouseId 
       });
-      sensorPromises.push(moistureData.save());
-
-      // Emit real-time update
-      if (io) {
-        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
-          type: 'soilMoisture',
-          value: parseInt(soilMoisture),
-          unit: 'raw',
-          timestamp: new Date()
-        });
+      
+      if (valve) {
+        valve.status = valveState ? 'ON' : 'OFF';
+        await valve.save();
+        
+        if (io) {
+          io.to(`greenhouse-${greenhouseId}`).emit('deviceUpdate', {
+            deviceId: valve.deviceId,
+            deviceType: 'WATER_VALVE',
+            status: valve.status,
+            lastUpdate: new Date()
+          });
+        }
       }
     }
 
-    // Light Level (LDR)
-    if (lightIntensity !== undefined && !isNaN(lightIntensity)) {
-      const lightData = new SensorData({
-        greenhouseId,
-        sensorType: 'LDR',
-        deviceId,
-        location: 'Main Greenhouse',
-        lightIntensity: parseInt(lightIntensity),
-        rawValue: parseInt(lightIntensity),
-        timestamp: new Date()
+    // Update fan status if provided - NEW
+    if (fanState !== undefined) {
+      const fan = await DeviceControl.findOne({ 
+        deviceType: 'FAN', 
+        greenhouseId 
       });
-      sensorPromises.push(lightData.save());
-
-      // Emit real-time update
-      if (io) {
-        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
-          type: 'lightLevel',
-          value: parseInt(lightIntensity),
-          unit: 'lux',
-          timestamp: new Date()
-        });
+      
+      if (fan) {
+        fan.status = fanState ? 'ON' : 'OFF';
+        await fan.save();
+        
+        if (io) {
+          io.to(`greenhouse-${greenhouseId}`).emit('deviceUpdate', {
+            deviceId: fan.deviceId,
+            deviceType: 'FAN',
+            status: fan.status,
+            lastUpdate: new Date()
+          });
+        }
       }
     }
 
-    // Water Level (Ultrasonic)
-    if (waterLevel !== undefined && !isNaN(waterLevel) && waterLevel > 0) {
-      const waterData = new SensorData({
-        greenhouseId,
-        sensorType: 'ULTRASONIC',
-        deviceId,
-        location: 'Water Tank',
-        customValue: parseInt(waterLevel),
-        rawValue: parseInt(waterLevel),
-        timestamp: new Date()
+    // Update window status if provided
+    if (windowState !== undefined) {
+      const window = await DeviceControl.findOne({ 
+        deviceType: 'WINDOW', 
+        greenhouseId 
       });
-      sensorPromises.push(waterData.save());
-
-      // Emit real-time update
-      if (io) {
-        io.to(`greenhouse-${greenhouseId}`).emit('sensorUpdate', {
-          type: 'waterLevel',
-          value: parseInt(waterLevel),
-          unit: 'cm',
-          timestamp: new Date()
-        });
+      
+      if (window) {
+        window.status = windowState ? 'OPEN' : 'CLOSED';
+        await window.save();
+        
+        if (io) {
+          io.to(`greenhouse-${greenhouseId}`).emit('deviceUpdate', {
+            deviceId: window.deviceId,
+            deviceType: 'WINDOW',
+            status: window.status,
+            lastUpdate: new Date()
+          });
+        }
       }
     }
 
-    // Save all sensor data
-    await Promise.all(sensorPromises);
+    // Update LED light status if provided - NEW
+    if (lightState !== undefined) {
+      const light = await DeviceControl.findOne({ 
+        deviceType: 'LED_LIGHT', 
+        greenhouseId 
+      });
+      
+      if (light) {
+        light.status = lightState ? 'ON' : 'OFF';
+        await light.save();
+        
+        if (io) {
+          io.to(`greenhouse-${greenhouseId}`).emit('deviceUpdate', {
+            deviceId: light.deviceId,
+            deviceType: 'LED_LIGHT',
+            status: light.status,
+            lastUpdate: new Date()
+          });
+        }
+      }
+    }
 
-    // Update or create device control states for actuators
-    if (actuators) {
-      // Water Pump
-      if (actuators.waterPump !== undefined) {
-        await updateDeviceControl(
-          'WATER_PUMP_001',
+    // Update auto mode for all devices if provided
+    if (autoMode !== undefined) {
+      await DeviceControl.updateMany(
+        { greenhouseId },
+        { $set: { autoMode } }
+      );
+      
+      if (io) {
+        io.to(`greenhouse-${greenhouseId}`).emit('autoModeUpdate', {
           greenhouseId,
-          actuators.waterPump ? 'ON' : 'OFF',
-          io
-        );
-      }
-
-      // Window Servo
-      if (actuators.window !== undefined) {
-        await updateDeviceControl(
-          'WINDOW_SERVO_001',
-          greenhouseId,
-          actuators.window ? 'OPEN' : 'CLOSED',
-          io
-        );
+          autoMode,
+          timestamp: new Date()
+        });
       }
     }
 
-    // Check thresholds and create alerts if necessary
-    if (sensors.temperature || sensors.humidity || sensors.soilMoisture || sensors.lightLevel) {
-      await checkComprehensiveThresholds(sensors, greenhouseId, deviceId, io);
-    }
-
-    // Prepare response with any commands for the device
-    const responseData = {
+    res.json({
       success: true,
-      message: 'Data received and processed',
-      timestamp: new Date(),
-      commands: await getDeviceCommands(deviceId, greenhouseId)
-    };
-
-    res.status(200).json(responseData);
-
+      message: 'Status updated successfully'
+    });
   } catch (error) {
-    console.error('❌ IoT endpoint error:', error);
+    console.error('Status update error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to process IoT data',
+      message: 'Failed to update status',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
@@ -1327,6 +1411,60 @@ async function ensureIoTDevicesExist(greenhouseId) {
       await waterPumpDevice.save();
       console.log('🔧 Created water pump device entry');
     }
+    
+    // Check if water valve device exists - NEW
+    let waterValveDevice = await DeviceControl.findOne({ deviceId: 'WATER_VALVE_001' });
+    if (!waterValveDevice) {
+      waterValveDevice = new DeviceControl({
+        deviceId: 'WATER_VALVE_001',
+        deviceName: 'Water Valve',
+        deviceType: 'WATER_VALVE',
+        greenhouseId: greenhouseId,
+        status: 'OFF',
+        autoMode: true,
+        location: 'Main Greenhouse',
+        intensity: 100,
+        powerConsumption: 10
+      });
+      await waterValveDevice.save();
+      console.log('🔧 Created water valve device entry');
+    }
+    
+    // Check if fan device exists - NEW
+    let fanDevice = await DeviceControl.findOne({ deviceId: 'FAN_001' });
+    if (!fanDevice) {
+      fanDevice = new DeviceControl({
+        deviceId: 'FAN_001',
+        deviceName: 'Ventilation Fan',
+        deviceType: 'FAN',
+        greenhouseId: greenhouseId,
+        status: 'OFF',
+        autoMode: true,
+        location: 'Main Greenhouse',
+        intensity: 100,
+        powerConsumption: 30
+      });
+      await fanDevice.save();
+      console.log('🔧 Created fan device entry');
+    }
+    
+    // Check if LED light device exists - NEW
+    let lightDevice = await DeviceControl.findOne({ deviceId: 'LED_LIGHT_001' });
+    if (!lightDevice) {
+      lightDevice = new DeviceControl({
+        deviceId: 'LED_LIGHT_001',
+        deviceName: 'Grow Light',
+        deviceType: 'LED_LIGHT',
+        greenhouseId: greenhouseId,
+        status: 'OFF',
+        autoMode: true,
+        location: 'Main Greenhouse',
+        intensity: 100,
+        powerConsumption: 15
+      });
+      await lightDevice.save();
+      console.log('🔧 Created LED light device entry');
+    }
 
     // Check if window servo device exists
     let windowDevice = await DeviceControl.findOne({ deviceId: 'WINDOW_SERVO_001' });
@@ -1334,7 +1472,7 @@ async function ensureIoTDevicesExist(greenhouseId) {
       windowDevice = new DeviceControl({
         deviceId: 'WINDOW_SERVO_001',
         deviceName: 'Automated Window',
-        deviceType: 'SERVO',
+        deviceType: 'WINDOW',
         greenhouseId: greenhouseId,
         status: 'CLOSED',
         autoMode: true,
@@ -1346,7 +1484,13 @@ async function ensureIoTDevicesExist(greenhouseId) {
       console.log('🔧 Created window servo device entry');
     }
 
-    return { waterPumpDevice, windowDevice };
+    return { 
+      waterPumpDevice, 
+      windowDevice,
+      waterValveDevice,
+      fanDevice,
+      lightDevice
+    };
   } catch (error) {
     console.error('Error ensuring IoT devices exist:', error);
     return null;

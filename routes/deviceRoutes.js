@@ -483,73 +483,179 @@ router.post('/setup-iot-devices', auth, async (req, res) => {
   }
 });
 
-// POST /api/devices/setup-iot-devices-public - Setup ESP32 IoT devices (no auth required for testing)
+// POST /api/devices/setup-iot-devices-public - Public endpoint to setup IoT devices
 router.post('/setup-iot-devices-public', async (req, res) => {
   try {
-    const { greenhouseId = 'greenhouse-001' } = req.body;
+    const greenhouseId = req.body.greenhouseId || 'greenhouse-001';
     
-    console.log('🔧 Setting up IoT devices for greenhouse:', greenhouseId);
-    
-    const devices = [];
-    
-    // Create or update water pump device
+    // Water pump
     let waterPump = await DeviceControl.findOne({ deviceId: 'WATER_PUMP_001' });
     if (!waterPump) {
       waterPump = new DeviceControl({
         deviceId: 'WATER_PUMP_001',
-        deviceName: 'Smart Water Pump',
+        deviceName: 'Water Pump',
         deviceType: 'WATER_PUMP',
-        greenhouseId: greenhouseId,
         status: 'OFF',
-        autoMode: true,
+        greenhouseId,
         location: 'Main Greenhouse',
-        intensity: 100,
-        powerConsumption: 25
+        powerConsumption: 25,
+        autoMode: true,
       });
       await waterPump.save();
-      devices.push(waterPump);
-      console.log('✅ Created Smart Water Pump device');
     }
     
-    // Create or update window servo device  
-    let windowServo = await DeviceControl.findOne({ deviceId: 'WINDOW_SERVO_001' });
-    if (!windowServo) {
-      windowServo = new DeviceControl({
-        deviceId: 'WINDOW_SERVO_001',
-        deviceName: 'Automated Window',
-        deviceType: 'SERVO',
-        greenhouseId: greenhouseId,
-        status: 'CLOSED',
-        autoMode: true,
+    // Water valve - NEW
+    let waterValve = await DeviceControl.findOne({ deviceId: 'WATER_VALVE_001' });
+    if (!waterValve) {
+      waterValve = new DeviceControl({
+        deviceId: 'WATER_VALVE_001',
+        deviceName: 'Irrigation Valve',
+        deviceType: 'WATER_VALVE',
+        status: 'OFF',
+        greenhouseId,
         location: 'Main Greenhouse',
-        intensity: 90,
-        powerConsumption: 5
+        powerConsumption: 10,
+        autoMode: true,
       });
-      await windowServo.save();
-      devices.push(windowServo);
-      console.log('✅ Created Automated Window device');
+      await waterValve.save();
     }
     
-    // Emit updates to connected clients
+    // Window control
+    let window = await DeviceControl.findOne({ deviceId: 'WINDOW_SERVO_001' });
+    if (!window) {
+      window = new DeviceControl({
+        deviceId: 'WINDOW_SERVO_001',
+        deviceName: 'Window Control',
+        deviceType: 'WINDOW',
+        status: 'CLOSED',
+        greenhouseId,
+        location: 'Main Greenhouse',
+        powerConsumption: 5,
+        autoMode: true,
+      });
+      await window.save();
+    }
+    
+    // Fan - NEW
+    let fan = await DeviceControl.findOne({ deviceId: 'FAN_001' });
+    if (!fan) {
+      fan = new DeviceControl({
+        deviceId: 'FAN_001',
+        deviceName: 'Ventilation Fan',
+        deviceType: 'FAN',
+        status: 'OFF',
+        greenhouseId,
+        location: 'Main Greenhouse',
+        powerConsumption: 30,
+        autoMode: true,
+      });
+      await fan.save();
+    }
+    
+    // LED Grow Light - NEW
+    let light = await DeviceControl.findOne({ deviceId: 'LED_LIGHT_001' });
+    if (!light) {
+      light = new DeviceControl({
+        deviceId: 'LED_LIGHT_001',
+        deviceName: 'LED Grow Light',
+        deviceType: 'LED_LIGHT',
+        status: 'OFF',
+        greenhouseId,
+        location: 'Main Greenhouse',
+        powerConsumption: 15,
+        autoMode: true,
+        intensity: 100
+      });
+      await light.save();
+    }
+    
+    // Send real-time update via Socket.IO
     const io = req.app.get('io');
     if (io) {
-      devices.forEach(device => {
-        io.to(`greenhouse-${device.greenhouseId}`).emit('deviceAdded', device);
+      io.to(`greenhouse-${greenhouseId}`).emit('devicesSetup', {
+        message: 'IoT devices have been set up',
+        count: 5,
+        timestamp: new Date()
       });
     }
     
     res.json({
       success: true,
-      message: `Created ${devices.length} IoT devices`,
-      data: devices,
-      allDevices: await DeviceControl.find({ greenhouseId })
+      message: 'IoT devices initialized successfully',
+      devices: [waterPump, waterValve, window, fan, light]
     });
-    
   } catch (error) {
     console.error('Error setting up IoT devices:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to setup IoT devices',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/devices/set-all-auto-mode - Set auto mode for all devices
+router.post('/set-all-auto-mode', auth, async (req, res) => {
+  try {
+    const { autoMode } = req.body;
+    
+    if (autoMode === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'autoMode parameter is required'
+      });
+    }
+    
+    // Update all devices
+    await DeviceControl.updateMany(
+      {}, // Match all devices
+      { $set: { autoMode: Boolean(autoMode) } }
+    );
+    
+    const updatedDevices = await DeviceControl.find({});
+    
+    // Send real-time update via Socket.IO
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('autoModeUpdate', {
+        autoMode: Boolean(autoMode),
+        timestamp: new Date()
+      });
+      
+      // Also emit individual device updates
+      for (const device of updatedDevices) {
+        io.to(`greenhouse-${device.greenhouseId}`).emit('deviceUpdate', {
+          deviceId: device.deviceId,
+          deviceType: device.deviceType,
+          autoMode: Boolean(autoMode),
+          lastUpdate: new Date()
+        });
+      }
+    }
+    
+    // Create control log for this global change
+    const controlLog = new DeviceControlLog({
+      action: 'set_global_auto_mode',
+      newStatus: autoMode ? 'ENABLED' : 'DISABLED',
+      previousStatus: !autoMode ? 'ENABLED' : 'DISABLED',
+      controlSource: 'manual',
+      userId: req.user.id,
+      username: req.user.username,
+      timestamp: new Date(),
+      greenhouseId: 'all'
+    });
+    await controlLog.save();
+    
+    res.json({
+      success: true,
+      message: `Auto mode ${autoMode ? 'enabled' : 'disabled'} for all devices`,
+      count: updatedDevices.length
+    });
+  } catch (error) {
+    console.error('Error setting global auto mode:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to set auto mode for all devices',
       error: error.message
     });
   }

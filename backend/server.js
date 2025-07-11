@@ -14,6 +14,7 @@ const alertRoutes = require('./routes/alertRoutes');
 const authRoutes = require('./routes/authRoutes');
 const iotRoutes = require('./routes/iotRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
+const setupRoutes = require('./routes/setupRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -253,6 +254,7 @@ app.use('/api/devices', deviceRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/iot', iotRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/setup', setupRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

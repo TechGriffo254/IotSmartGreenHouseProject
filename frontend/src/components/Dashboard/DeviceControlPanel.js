@@ -1,17 +1,79 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Power, RotateCcw, Settings, Clock } from 'lucide-react';
+import { Power, RotateCcw, Settings, Clock, Droplets, Wind, Sun, Info, ChevronUp, ChevronDown } from 'lucide-react';
+import { SocketContext } from '../../context/SocketContext';
 
 const DeviceControlPanel = () => {
   const [devices, setDevices] = useState([]);
   const [controlHistory, setControlHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expandedDevices, setExpandedDevices] = useState({});
+  const [allAutoMode, setAllAutoMode] = useState(false);
+  const socket = useContext(SocketContext);
+  const [lastSensorData, setLastSensorData] = useState({
+    temperature: null,
+    humidity: null,
+    soilMoisture: null,
+    lightIntensity: null,
+    waterLevel: null,
+  });
+
+  // Handle device updates from socket
+  const handleDeviceUpdate = (updatedDevice) => {
+    setDevices(prevDevices => 
+      prevDevices.map(device => 
+        device.deviceId === updatedDevice.deviceId 
+          ? { ...device, ...updatedDevice } 
+          : device
+      )
+    );
+  };
+
+  // Handle sensor updates from socket
+  const handleSensorUpdate = (sensorData) => {
+    setLastSensorData(prev => ({
+      ...prev,
+      [sensorData.type]: sensorData.value
+    }));
+  };
+
+  // Handle all sensors update from socket
+  const handleAllSensorsUpdate = (allData) => {
+    setLastSensorData({
+      temperature: allData.temperature,
+      humidity: allData.humidity,
+      soilMoisture: allData.soilMoisture,
+      lightIntensity: allData.lightIntensity,
+      waterLevel: allData.waterLevel
+    });
+  };
+
+  // Toggle device expansion
+  const toggleDeviceExpand = (deviceId) => {
+    setExpandedDevices(prev => ({
+      ...prev,
+      [deviceId]: !prev[deviceId]
+    }));
+  };
 
   useEffect(() => {
     loadDevices();
     loadControlHistory();
-  }, []);
+
+    // Set up socket listeners for real-time updates
+    if (socket) {
+      socket.on('deviceUpdate', handleDeviceUpdate);
+      socket.on('sensorUpdate', handleSensorUpdate);
+      socket.on('allSensorsUpdate', handleAllSensorsUpdate);
+      
+      return () => {
+        socket.off('deviceUpdate', handleDeviceUpdate);
+        socket.off('sensorUpdate', handleSensorUpdate);
+        socket.off('allSensorsUpdate', handleAllSensorsUpdate);
+      };
+    }
+  }, [socket]);
 
   const loadDevices = async () => {
     try {
@@ -69,12 +131,35 @@ const DeviceControlPanel = () => {
 
   const getDeviceIcon = (deviceType) => {
     switch (deviceType) {
-      case 'WATER_PUMP': return '💧';
-      case 'SERVO': return '🪟';
-      case 'FAN': return '🌪️';
-      case 'LED_LIGHT': return '💡';
-      case 'HEATER': return '🔥';
-      default: return '⚡';
+      case 'WATER_PUMP': return <Droplets className="h-6 w-6 text-blue-500" />;
+      case 'WATER_VALVE': return <Droplets className="h-6 w-6 text-cyan-500" />;
+      case 'SERVO':
+      case 'WINDOW': return <ChevronUp className="h-6 w-6 text-green-500" />;
+      case 'FAN': return <Wind className="h-6 w-6 text-gray-500" />;
+      case 'LED_LIGHT': return <Sun className="h-6 w-6 text-yellow-500" />;
+      case 'HEATER': return <Sun className="h-6 w-6 text-red-500" />;
+      default: return <Power className="h-6 w-6 text-gray-500" />;
+    }
+  };
+  
+  // Set auto mode for all devices
+  const setGlobalAutoMode = async (autoMode) => {
+    try {
+      // Update UI optimistically
+      setAllAutoMode(autoMode);
+      setDevices(prevDevices => 
+        prevDevices.map(device => ({...device, autoMode}))
+      );
+      
+      // Make API call to update all devices
+      const response = await axios.post('/api/devices/set-all-auto-mode', { autoMode });
+      if (response.data.success) {
+        toast.success(`Auto mode ${autoMode ? 'enabled' : 'disabled'} for all devices`);
+        await loadDevices();
+      }
+    } catch (error) {
+      toast.error('Failed to update auto mode');
+      await loadDevices(); // Reload actual state from server
     }
   };
 
@@ -99,107 +184,202 @@ const DeviceControlPanel = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">IoT Device Control</h1>
-          <p className="text-gray-600">Control your smart greenhouse devices</p>
+      {/* Header with Sensors Summary */}
+      <div className="bg-gradient-to-r from-green-700 to-green-500 rounded-lg shadow-lg p-6 text-white">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl font-bold">Greenhouse Control Center</h1>
+            <p className="opacity-80">Manage and monitor your smart greenhouse devices</p>
+          </div>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setGlobalAutoMode(!allAutoMode)}
+              className={`px-4 py-2 rounded-lg flex items-center ${
+                allAutoMode 
+                  ? 'bg-purple-700 hover:bg-purple-800' 
+                  : 'bg-white/20 hover:bg-white/30'
+              }`}
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              {allAutoMode ? 'Auto Mode: On' : 'Auto Mode: Off'}
+            </button>
+            <button
+              onClick={setupIoTDevices}
+              className="bg-white text-green-700 px-4 py-2 rounded-lg hover:bg-green-100 flex items-center"
+            >
+              <Power className="h-4 w-4 mr-2" />
+              Setup Devices
+            </button>
+          </div>
         </div>
-        <button
-          onClick={setupIoTDevices}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center"
-        >
-          <Settings className="h-4 w-4 mr-2" />
-          Setup IoT Devices
-        </button>
+
+        {/* Sensor Data Summary */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
+          <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
+            <div className="text-xs uppercase opacity-70">Temperature</div>
+            <div className="text-xl font-bold">{lastSensorData.temperature !== null ? `${lastSensorData.temperature}°C` : '--°C'}</div>
+          </div>
+          <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
+            <div className="text-xs uppercase opacity-70">Humidity</div>
+            <div className="text-xl font-bold">{lastSensorData.humidity !== null ? `${lastSensorData.humidity}%` : '--%'}</div>
+          </div>
+          <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
+            <div className="text-xs uppercase opacity-70">Soil Moisture</div>
+            <div className="text-xl font-bold">{lastSensorData.soilMoisture !== null ? lastSensorData.soilMoisture : '--'}</div>
+          </div>
+          <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
+            <div className="text-xs uppercase opacity-70">Light Level</div>
+            <div className="text-xl font-bold">{lastSensorData.lightIntensity !== null ? lastSensorData.lightIntensity : '--'}</div>
+          </div>
+          <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
+            <div className="text-xs uppercase opacity-70">Water Level</div>
+            <div className="text-xl font-bold">{lastSensorData.waterLevel !== null ? `${lastSensorData.waterLevel}cm` : '--cm'}</div>
+          </div>
+        </div>
       </div>
 
       {/* Devices Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {devices.map((device) => (
-          <div key={device.deviceId} className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <span className="text-2xl mr-3">{getDeviceIcon(device.deviceType)}</span>
-                <div>
-                  <h3 className="font-semibold text-gray-900">{device.deviceName}</h3>
-                  <p className="text-sm text-gray-600">{device.deviceType.replace('_', ' ')}</p>
+          <div 
+            key={device.deviceId} 
+            className={`bg-white rounded-lg shadow-md border transition-all ${
+              (device.status === 'ON' || device.status === 'OPEN') 
+                ? 'border-green-300 shadow-green-100' 
+                : 'border-gray-200'
+            }`}
+          >
+            <div 
+              className="p-5 cursor-pointer"
+              onClick={() => toggleDeviceExpand(device.deviceId)}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center">
+                  <div className={`p-2 rounded-lg mr-3 ${
+                    (device.status === 'ON' || device.status === 'OPEN') 
+                      ? 'bg-green-100' 
+                      : 'bg-gray-100'
+                  }`}>
+                    {getDeviceIcon(device.deviceType)}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{device.deviceName}</h3>
+                    <p className="text-sm text-gray-600">{device.deviceType.replace('_', ' ')}</p>
+                  </div>
+                </div>
+                <div className="flex items-center">
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(device.status)}`}>
+                    {device.status}
+                  </span>
+                  <div className="ml-2">
+                    {expandedDevices[device.deviceId] ? 
+                      <ChevronUp className="h-5 w-5 text-gray-400" /> : 
+                      <ChevronDown className="h-5 w-5 text-gray-400" />
+                    }
+                  </div>
                 </div>
               </div>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(device.status)}`}>
-                {device.status}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
-              <div>
-                <span className="text-gray-600">Power:</span>
-                <span className="ml-2 font-medium">{device.powerConsumption}W</span>
+              
+              {/* Quick Controls - Always Visible */}
+              <div className="flex flex-wrap gap-2 mt-3">
+                {(['WINDOW', 'SERVO'].includes(device.deviceType)) ? (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        controlDevice(device.deviceId, 'open');
+                      }}
+                      className="flex-1 bg-blue-50 text-blue-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-100 flex items-center justify-center"
+                    >
+                      <ChevronUp className="h-4 w-4 mr-1" />
+                      Open
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        controlDevice(device.deviceId, 'close');
+                      }}
+                      className="flex-1 bg-gray-50 text-gray-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 flex items-center justify-center"
+                    >
+                      <ChevronDown className="h-4 w-4 mr-1" />
+                      Close
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        controlDevice(device.deviceId, 'turn_on');
+                      }}
+                      className="flex-1 bg-green-50 text-green-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-green-100 flex items-center justify-center"
+                    >
+                      <Power className="h-4 w-4 mr-1" />
+                      On
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        controlDevice(device.deviceId, 'turn_off');
+                      }}
+                      className="flex-1 bg-gray-50 text-gray-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 flex items-center justify-center"
+                    >
+                      <Power className="h-4 w-4 mr-1" />
+                      Off
+                    </button>
+                  </>
+                )}
               </div>
-              <div>
-                <span className="text-gray-600">Auto Mode:</span>
-                <span className="ml-2 font-medium">{device.autoMode ? 'Yes' : 'No'}</span>
-              </div>
             </div>
-
-            <div className="flex flex-wrap gap-2">
-              {device.deviceType === 'SERVO' ? (
-                <>
+            
+            {/* Extended Controls - Visible when expanded */}
+            {expandedDevices[device.deviceId] && (
+              <div className="px-5 pb-5 pt-2 border-t border-gray-100">
+                <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Power Consumption:</span>
+                    <span className="ml-2 font-medium">{device.powerConsumption}W</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Location:</span>
+                    <span className="ml-2 font-medium">{device.location}</span>
+                  </div>
+                  {device.intensity !== undefined && (
+                    <div className="col-span-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Intensity:</span>
+                        <span className="font-medium">{device.intensity}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={device.intensity}
+                        onChange={(e) => controlDevice(device.deviceId, 'set_intensity', parseInt(e.target.value))}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-1"
+                      />
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex items-center justify-between mt-2">
                   <button
-                    onClick={() => controlDevice(device.deviceId, 'open')}
-                    className="flex-1 bg-green-100 text-green-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-green-200"
+                    onClick={() => controlDevice(device.deviceId, 'set_auto_mode', !device.autoMode)}
+                    className={`text-sm px-3 py-1 rounded-md font-medium flex items-center ${
+                      device.autoMode 
+                        ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
                   >
-                    Open
+                    <Settings className="h-4 w-4 mr-1" />
+                    {device.autoMode ? 'Auto: On' : 'Auto: Off'}
                   </button>
-                  <button
-                    onClick={() => controlDevice(device.deviceId, 'close')}
-                    className="flex-1 bg-red-100 text-red-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-red-200"
-                  >
-                    Close
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => controlDevice(device.deviceId, 'turn_on')}
-                    className="flex-1 bg-green-100 text-green-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-green-200"
-                  >
-                    Turn On
-                  </button>
-                  <button
-                    onClick={() => controlDevice(device.deviceId, 'turn_off')}
-                    className="flex-1 bg-red-100 text-red-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-red-200"
-                  >
-                    Turn Off
-                  </button>
-                </>
-              )}
-              <button
-                onClick={() => controlDevice(device.deviceId, 'toggle')}
-                className="bg-blue-100 text-blue-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-200 flex items-center"
-              >
-                <RotateCcw className="h-4 w-4 mr-1" />
-                Toggle
-              </button>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => controlDevice(device.deviceId, 'set_auto_mode', !device.autoMode)}
-                  className={`text-sm px-3 py-1 rounded-md font-medium ${
-                    device.autoMode 
-                      ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {device.autoMode ? 'Disable Auto' : 'Enable Auto'}
-                </button>
-                <div className="text-xs text-gray-500">
-                  ID: {device.deviceId}
+                  <div className="text-xs text-gray-500">
+                    <span className="font-medium">Last Updated:</span> {new Date(device.updatedAt || Date.now()).toLocaleTimeString()}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         ))}
       </div>
@@ -222,23 +402,38 @@ const DeviceControlPanel = () => {
 
       {/* Control History */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center mb-4">
-          <Clock className="h-5 w-5 text-gray-600 mr-2" />
-          <h2 className="text-lg font-semibold text-gray-900">Recent Control History</h2>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <Clock className="h-5 w-5 text-gray-600 mr-2" />
+            <h2 className="text-lg font-semibold text-gray-900">Real-Time Device History</h2>
+          </div>
+          <button 
+            onClick={loadControlHistory}
+            className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
+          >
+            <RotateCcw className="h-4 w-4 mr-1" />
+            Refresh
+          </button>
         </div>
         
         {controlHistory.length === 0 ? (
           <p className="text-gray-500 text-center py-4">No control history available</p>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
             {controlHistory.map((log, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                 <div className="flex items-center">
-                  <span className="text-lg mr-3">{getDeviceIcon(log.deviceType)}</span>
+                  <div className={`p-2 rounded-full mr-3 ${
+                    log.newStatus === 'ON' || log.newStatus === 'OPEN'
+                      ? 'bg-green-100' 
+                      : 'bg-gray-100'
+                  }`}>
+                    {getDeviceIcon(log.deviceType)}
+                  </div>
                   <div>
                     <p className="font-medium text-gray-900">{log.deviceName}</p>
                     <p className="text-sm text-gray-600">
-                      {log.action.replace('_', ' ')} • {log.previousStatus} → {log.newStatus}
+                      {log.action.replace(/_/g, ' ')} • {log.previousStatus} → {log.newStatus}
                     </p>
                   </div>
                 </div>

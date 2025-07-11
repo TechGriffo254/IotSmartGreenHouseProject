@@ -300,9 +300,10 @@ export const SocketProvider = ({ children }) => {
   const emitDeviceControl = (deviceId, action, payload = {}) => {
     if (socket && connected) {
       console.log('🎮 Emitting device control:', deviceId, action);
-      socket.emit('deviceControl', {
+      socket.emit('device-control', {
         deviceId,
         action,
+        greenhouseId: 'greenhouse-001', // Add greenhouseId required by the backend
         ...payload
       });
     }

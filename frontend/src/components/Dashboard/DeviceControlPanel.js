@@ -47,7 +47,7 @@ const DeviceControlPanel = () => {
   // Load control history function with useCallback
   const loadControlHistory = useCallback(async () => {
     try {
-      const response = await axios.get('/api/devices/control-logs/greenhouse-001');
+      const response = await axios.get('/api/devices/control-history/greenhouse-001');
       if (response.data.success) {
         setControlHistory(response.data.data);
       }

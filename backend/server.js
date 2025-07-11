@@ -256,6 +256,30 @@ app.use('/api/iot', iotRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/setup', setupRoutes);
 
+// Root endpoint - API welcome
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: '🌱 Smart Greenhouse IoT API - Successfully Deployed!',
+    version: '1.0.0',
+    status: 'Running',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    endpoints: {
+      health: '/api/health',
+      sensors: '/api/sensors',
+      devices: '/api/devices',
+      alerts: '/api/alerts',
+      iot: '/api/iot',
+      auth: '/api/auth',
+      settings: '/api/settings'
+    },
+    documentation: 'https://github.com/TechGriffo254/IotSmartGreenHouseProject',
+    deployment: 'Koyeb Cloud Platform'
+  });
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState;

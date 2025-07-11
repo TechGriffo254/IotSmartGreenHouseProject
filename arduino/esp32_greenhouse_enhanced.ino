@@ -25,6 +25,7 @@ const char* pincode = "123456";
 
 // Sensors
 #define DHT_PIN      4    // DHT11 data pin
+#define DHT_TYPE    DHT11  // DHT sensor type (DHT11 or DHT22)
 #define MOISTURE_PIN 34   // Soil moisture analog pin
 #define LDR_PIN      35   // Light sensor analog pin
 #define TRIG_PIN     12   // Ultrasonic trigger pin

@@ -4,6 +4,29 @@ const SensorData = require('../models/SensorData');
 const DeviceControl = require('../models/DeviceControl');
 const Alert = require('../models/Alert');
 
+// GET /api/iot - Root endpoint for IoT API documentation and status
+router.get('/', async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      message: 'IoT API endpoints',
+      endpoints: {
+        dataUpload: 'POST /api/iot',
+        deviceCommands: 'GET /api/iot/device-commands/:deviceId',
+        commands: 'GET /api/iot/commands/:deviceId'
+      },
+      status: 'active'
+    });
+  } catch (error) {
+    console.error('Error in IoT root endpoint:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error in IoT endpoint',
+      error: error.message
+    });
+  }
+});
+
 // POST /api/iot - Main endpoint for ESP32 to send combined sensor data
 router.post('/', async (req, res) => {
   try {

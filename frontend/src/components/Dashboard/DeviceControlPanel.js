@@ -1,16 +1,22 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Power, RotateCcw, Settings, Clock, Droplets, Wind, Sun, Info, ChevronUp, ChevronDown } from 'lucide-react';
-import { SocketContext } from '../../context/SocketContext';
+import { Power, RotateCcw, Settings, Clock, Droplets, Wind, Sun, ChevronUp, ChevronDown } from 'lucide-react';
+import { useSocket } from '../../context/SocketContext';
 
 const DeviceControlPanel = () => {
-  const [devices, setDevices] = useState([]);
   const [controlHistory, setControlHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedDevices, setExpandedDevices] = useState({});
   const [allAutoMode, setAllAutoMode] = useState(false);
-  const socket = useContext(SocketContext);
+  const { 
+    socket, 
+    connected, 
+    devices, 
+    setDevices,
+    emitDeviceControl,
+    refreshAllData 
+  } = useSocket();
   const [lastSensorData, setLastSensorData] = useState({
     temperature: null,
     humidity: null,
@@ -19,8 +25,87 @@ const DeviceControlPanel = () => {
     waterLevel: null,
   });
 
-  // Handle device updates from socket
-  const handleDeviceUpdate = (updatedDevice) => {
+  // Load devices function with useCallback
+  const loadDevices = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get('/api/devices/greenhouse-001');
+      if (response.data.success) {
+        setDevices(response.data.data);
+        // Check if any device is in auto mode to update the global state
+        const anyAutoMode = response.data.data.some(device => device.autoMode);
+        setAllAutoMode(anyAutoMode);
+      }
+      setLoading(false);
+    } catch (error) {
+      setLoading(false);
+      const message = error.response?.data?.message || 'Failed to load devices';
+      toast.error(message);
+    }
+  }, [setDevices, setAllAutoMode]);
+
+  // Load control history function with useCallback
+  const loadControlHistory = useCallback(async () => {
+    try {
+      const response = await axios.get('/api/devices/control-logs/greenhouse-001');
+      if (response.data.success) {
+        setControlHistory(response.data.data);
+      }
+    } catch (error) {
+      console.error('Failed to load control history:', error);
+      toast.error('Failed to load device history');
+    }
+  }, [setControlHistory]);
+
+  // Control device function with useCallback
+  const controlDevice = useCallback(async (deviceId, action, value) => {
+    try {
+      console.log(`🎮 Controlling device ${deviceId}: ${action} ${value !== undefined ? value : ''}`);
+      
+      // Emit the control action via socket for real-time response
+      emitDeviceControl(deviceId, action, value !== undefined ? { value } : {});
+      
+      // Optimistically update UI
+      setDevices(prevDevices => 
+        prevDevices.map(device => {
+          if (device.deviceId === deviceId) {
+            let updatedDevice = { ...device };
+            
+            // Update status based on action
+            if (action === 'turn_on') updatedDevice.status = 'ON';
+            else if (action === 'turn_off') updatedDevice.status = 'OFF';
+            else if (action === 'open') updatedDevice.status = 'OPEN';
+            else if (action === 'close') updatedDevice.status = 'CLOSED';
+            else if (action === 'set_auto_mode') updatedDevice.autoMode = value !== undefined ? value : !device.autoMode;
+            else if (action === 'set_intensity' && value !== undefined) updatedDevice.intensity = value;
+            
+            return updatedDevice;
+          }
+          return device;
+        })
+      );
+      
+      // Also make API call for server state persistence
+      const payload = value !== undefined ? { action, value } : { action };
+      const response = await axios.post(`/api/devices/control/${deviceId}`, payload);
+      
+      if (response.data.success) {
+        toast.success(`${action.replace('_', ' ')} successful`);
+        // Refresh data to ensure UI is in sync with server
+        await loadDevices();
+        await loadControlHistory();
+      }
+    } catch (error) {
+      const message = error.response?.data?.message || 'Failed to control device';
+      toast.error(message);
+      // Reload actual state from server on error
+      await loadDevices();
+    }
+  }, [emitDeviceControl, setDevices, loadDevices, loadControlHistory]);
+
+  // Handle device updates from socket with useCallback
+  const handleDeviceUpdate = useCallback((updatedDevice) => {
+    console.log('📱 Device update in DeviceControlPanel:', updatedDevice.deviceId);
     setDevices(prevDevices => 
       prevDevices.map(device => 
         device.deviceId === updatedDevice.deviceId 
@@ -28,18 +113,18 @@ const DeviceControlPanel = () => {
           : device
       )
     );
-  };
+  }, [setDevices]);
 
   // Handle sensor updates from socket
-  const handleSensorUpdate = (sensorData) => {
+  const handleSensorUpdate = useCallback((sensorData) => {
     setLastSensorData(prev => ({
       ...prev,
       [sensorData.type]: sensorData.value
     }));
-  };
+  }, []);
 
   // Handle all sensors update from socket
-  const handleAllSensorsUpdate = (allData) => {
+  const handleAllSensorsUpdate = useCallback((allData) => {
     setLastSensorData({
       temperature: allData.temperature,
       humidity: allData.humidity,
@@ -47,7 +132,7 @@ const DeviceControlPanel = () => {
       lightIntensity: allData.lightIntensity,
       waterLevel: allData.waterLevel
     });
-  };
+  }, []);
 
   // Toggle device expansion
   const toggleDeviceExpand = (deviceId) => {
@@ -57,65 +142,48 @@ const DeviceControlPanel = () => {
     }));
   };
 
+  // Initial load and socket setup
   useEffect(() => {
     loadDevices();
     loadControlHistory();
 
     // Set up socket listeners for real-time updates
     if (socket) {
+      console.log('🔄 Setting up socket event listeners in DeviceControlPanel');
+      
       socket.on('deviceUpdate', handleDeviceUpdate);
       socket.on('sensorUpdate', handleSensorUpdate);
       socket.on('allSensorsUpdate', handleAllSensorsUpdate);
+      socket.on('device-control-update', (data) => {
+        console.log('🎮 Device control update in panel:', data);
+        loadDevices();
+        loadControlHistory();
+      });
+      socket.on('deviceControlled', (data) => {
+        console.log('🎮 Device controlled event in panel');
+        loadDevices();
+        loadControlHistory();
+      });
       
       return () => {
         socket.off('deviceUpdate', handleDeviceUpdate);
         socket.off('sensorUpdate', handleSensorUpdate);
         socket.off('allSensorsUpdate', handleAllSensorsUpdate);
+        socket.off('device-control-update');
+        socket.off('deviceControlled');
       };
     }
-  }, [socket]);
+  }, [socket, handleDeviceUpdate, loadDevices, loadControlHistory, handleSensorUpdate, handleAllSensorsUpdate]);
 
-  const loadDevices = async () => {
-    try {
-      const response = await axios.get('/api/devices/greenhouse-001');
-      if (response.data.success) {
-        setDevices(response.data.data);
-      }
-    } catch (error) {
-      console.error('Error loading devices:', error);
-      toast.error('Failed to load devices');
-    } finally {
-      setLoading(false);
+  // Effect to monitor connection status
+  useEffect(() => {
+    if (connected) {
+      loadDevices();
+      loadControlHistory();
     }
-  };
+  }, [connected, loadDevices, loadControlHistory]);
 
-  const loadControlHistory = async () => {
-    try {
-      const response = await axios.get('/api/devices/control-history/greenhouse-001?limit=10');
-      if (response.data.success) {
-        setControlHistory(response.data.data);
-      }
-    } catch (error) {
-      console.error('Error loading control history:', error);
-    }
-  };
-
-  const controlDevice = async (deviceId, action, value = null) => {
-    try {
-      const payload = { action };
-      if (value !== null) payload.value = value;
-
-      const response = await axios.post(`/api/devices/${deviceId}/control`, payload);
-      if (response.data.success) {
-        toast.success(response.data.message);
-        await loadDevices(); // Refresh device states
-        await loadControlHistory(); // Refresh history
-      }
-    } catch (error) {
-      const message = error.response?.data?.message || 'Failed to control device';
-      toast.error(message);
-    }
-  };
+  // loadDevices function is defined above with useCallback
 
   const setupIoTDevices = async () => {
     try {
@@ -408,11 +476,14 @@ const DeviceControlPanel = () => {
             <h2 className="text-lg font-semibold text-gray-900">Real-Time Device History</h2>
           </div>
           <button 
-            onClick={loadControlHistory}
+            onClick={() => {
+              refreshAllData(); // Use the context's refreshAllData function
+              loadControlHistory();
+            }}
             className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
           >
             <RotateCcw className="h-4 w-4 mr-1" />
-            Refresh
+            Refresh All Data
           </button>
         </div>
         

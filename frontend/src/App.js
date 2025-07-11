@@ -6,6 +6,7 @@ import Dashboard from './components/Dashboard/Dashboard';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import LoadingSpinner from './components/common/LoadingSpinner';
+import PullToRefresh from './components/common/PullToRefresh';
 import './App.css';
 
 function AppRoutes() {
@@ -15,7 +16,7 @@ function AppRoutes() {
     return <LoadingSpinner />;
   }
 
-  return (
+  const routeElement = (
     <Routes>
       <Route 
         path="/login" 
@@ -31,6 +32,13 @@ function AppRoutes() {
       />
     </Routes>
   );
+
+  // Wrap the authenticated routes with PullToRefresh
+  return user ? (
+    <PullToRefresh>
+      {routeElement}
+    </PullToRefresh>
+  ) : routeElement;
 }
 
 function App() {

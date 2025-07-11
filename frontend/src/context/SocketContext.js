@@ -1,9 +1,13 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import io from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import toast from 'react-hot-toast';
+import axios from 'axios';
 
 const SocketContext = createContext();
+
+// Poll interval in ms (15 seconds)
+const POLL_INTERVAL = 15000;
 
 export const useSocket = () => {
   const context = useContext(SocketContext);
@@ -20,12 +24,76 @@ export const SocketProvider = ({ children }) => {
   const [alerts, setAlerts] = useState([]);
   const [devices, setDevices] = useState([]);
   const { user, isAuthenticated } = useAuth();
+  const pollingIntervalRef = useRef(null);
+  const [lastRefresh, setLastRefresh] = useState(Date.now());
+
+  // Function to fetch all initial data
+  const fetchAllData = async () => {
+    console.log('🔄 Fetching initial data from server...');
+    try {
+      // Fetch devices
+      const deviceResponse = await axios.get('/api/devices/greenhouse-001');
+      if (deviceResponse.data.success) {
+        console.log('📱 Devices fetched:', deviceResponse.data.data.length);
+        setDevices(deviceResponse.data.data);
+      }
+
+      // Fetch latest sensor data
+      const sensorResponse = await axios.get('/api/sensors/latest/greenhouse-001');
+      if (sensorResponse.data.success) {
+        const sensorMap = {};
+        sensorResponse.data.data.forEach(sensor => {
+          sensorMap[sensor.sensorType] = sensor;
+        });
+        console.log('📊 Sensors fetched:', Object.keys(sensorMap).length);
+        setSensorData(sensorMap);
+      }
+
+      // Fetch active alerts
+      const alertResponse = await axios.get('/api/alerts/active/greenhouse-001');
+      if (alertResponse.data.success) {
+        console.log('⚠️ Alerts fetched:', alertResponse.data.data.length);
+        setAlerts(alertResponse.data.data);
+      }
+      
+      // Update the last refresh timestamp
+      setLastRefresh(Date.now());
+    } catch (error) {
+      console.error('Error fetching initial data:', error);
+    }
+  };
+  
+  // Set up polling as a fallback for real-time updates
+  useEffect(() => {
+    if (isAuthenticated && !pollingIntervalRef.current) {
+      console.log('⏱️ Setting up polling interval for data refresh');
+      
+      pollingIntervalRef.current = setInterval(() => {
+        if (Date.now() - lastRefresh > POLL_INTERVAL) {
+          console.log('⏱️ Polling: Refreshing data...');
+          fetchAllData();
+        }
+      }, POLL_INTERVAL);
+    }
+    
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [isAuthenticated, lastRefresh]);
 
   useEffect(() => {
     if (isAuthenticated && user && localStorage.getItem('token') && !socket) {
       console.log('🔌 Creating socket connection for user:', user.username);
       
-      const newSocket = io('https://open-lauryn-ina-9662925b.koyeb.app', {
+      // Use the same host as the current page to avoid CORS issues
+      const host = window.location.hostname === 'localhost' 
+        ? 'http://localhost:5000'
+        : 'https://open-lauryn-ina-9662925b.koyeb.app';
+      
+      const newSocket = io(host, {
         auth: {
           token: localStorage.getItem('token')
         },
@@ -33,14 +101,17 @@ export const SocketProvider = ({ children }) => {
         timeout: 20000,
         reconnection: true,
         reconnectionDelay: 2000,
-        reconnectionAttempts: 3
+        reconnectionAttempts: 5
       });
 
-      newSocket.on('connect', () => {
+      newSocket.on('connect', async () => {
         console.log('✅ Socket connected successfully');
         setConnected(true);
         newSocket.emit('join-greenhouse', 'greenhouse-001');
         toast.success('Connected to greenhouse system');
+        
+        // Fetch fresh data when socket connects
+        await fetchAllData();
       });
 
       newSocket.on('connect_error', (error) => {
@@ -51,6 +122,8 @@ export const SocketProvider = ({ children }) => {
 
       newSocket.on('greenhouse-joined', (data) => {
         console.log('🏠 Joined greenhouse:', data.greenhouseId);
+        // Fetch fresh data when joining a greenhouse
+        fetchAllData();
       });
 
       newSocket.on('disconnect', (reason) => {
@@ -63,6 +136,7 @@ export const SocketProvider = ({ children }) => {
 
       // Listen for sensor updates
       newSocket.on('sensorUpdate', (data) => {
+        console.log('📡 Sensor update received:', data.sensorType);
         setSensorData(prevData => ({
           ...prevData,
           [data.sensorType]: data
@@ -71,7 +145,7 @@ export const SocketProvider = ({ children }) => {
 
       // Listen for comprehensive sensor updates from ESP32
       newSocket.on('allSensorsUpdate', (data) => {
-        console.log('📊 All sensors update received:', data);
+        console.log('📊 All sensors update received');
         
         // Update all sensor readings at once
         setSensorData(prevData => ({
@@ -111,6 +185,7 @@ export const SocketProvider = ({ children }) => {
 
       // Listen for new alerts
       newSocket.on('newAlert', (alert) => {
+        console.log('⚠️ New alert received:', alert.alertType);
         setAlerts(prevAlerts => [alert, ...prevAlerts]);
         
         const message = `${alert.alertType.replace('_', ' ')}: ${alert.message}`;
@@ -137,6 +212,7 @@ export const SocketProvider = ({ children }) => {
 
       // Listen for alert resolution
       newSocket.on('alertResolved', (alert) => {
+        console.log('✅ Alert resolved:', alert.alertType);
         setAlerts(prevAlerts => 
           prevAlerts.map(a => a._id === alert._id ? alert : a)
         );
@@ -145,23 +221,64 @@ export const SocketProvider = ({ children }) => {
 
       // Listen for device updates
       newSocket.on('deviceUpdate', (device) => {
+        console.log('📱 Device update received:', device.deviceId);
         setDevices(prevDevices => 
           prevDevices.map(d => d.deviceId === device.deviceId ? device : d)
         );
       });
 
+      // Listen for device-control-update (from the server.js emitter)
+      newSocket.on('device-control-update', (data) => {
+        console.log('🎮 Device control update received:', data.deviceId, data.action);
+        // Update the specific device immediately
+        if (data.deviceId) {
+          setDevices(prevDevices => 
+            prevDevices.map(d => d.deviceId === data.deviceId 
+              ? { ...d, status: data.action === 'ON' ? 'ON' : 'OFF' } 
+              : d
+            )
+          );
+        }
+        // Then refresh all devices to ensure consistency
+        fetchAllData();
+      });
+
+      // Listen for deviceControlled (alternative event name)
+      newSocket.on('deviceControlled', (data) => {
+        console.log('🎮 Device controlled:', data.device?.deviceId);
+        // Update the specific device immediately if we have the data
+        if (data.device) {
+          setDevices(prevDevices => 
+            prevDevices.map(d => d.deviceId === data.device.deviceId 
+              ? { ...d, ...data.device } 
+              : d
+            )
+          );
+        }
+        // Then refresh all devices to ensure consistency
+        fetchAllData();
+      });
+
       // Listen for device additions
       newSocket.on('deviceAdded', (device) => {
+        console.log('➕ Device added:', device.deviceName);
         setDevices(prevDevices => [...prevDevices, device]);
         toast.success(`New device added: ${device.deviceName}`);
       });
 
       // Listen for device removal
       newSocket.on('deviceRemoved', ({ deviceId }) => {
+        console.log('➖ Device removed:', deviceId);
         setDevices(prevDevices => 
           prevDevices.filter(d => d.deviceId !== deviceId)
         );
         toast.success('Device removed');
+      });
+
+      // Add a reconnect handler to refresh data
+      newSocket.io.on("reconnect", () => {
+        console.log('🔄 Socket reconnected, refreshing data...');
+        fetchAllData();
       });
 
       setSocket(newSocket);
@@ -182,6 +299,7 @@ export const SocketProvider = ({ children }) => {
 
   const emitDeviceControl = (deviceId, action, payload = {}) => {
     if (socket && connected) {
+      console.log('🎮 Emitting device control:', deviceId, action);
       socket.emit('deviceControl', {
         deviceId,
         action,
@@ -196,6 +314,15 @@ export const SocketProvider = ({ children }) => {
     }
   };
 
+  // Function to manually refresh all data
+  const refreshAllData = () => {
+    if (connected) {
+      console.log('🔄 Manually refreshing all data...');
+      return fetchAllData();
+    }
+    return Promise.resolve();
+  };
+
   const value = {
     socket,
     connected,
@@ -206,7 +333,8 @@ export const SocketProvider = ({ children }) => {
     setAlerts,
     setDevices,
     emitDeviceControl,
-    joinGreenhouse
+    joinGreenhouse,
+    refreshAllData
   };
 
   return (

@@ -354,16 +354,31 @@ router.post('/:deviceId/control', auth, async (req, res) => {
       console.error('Error saving control log:', logError);
     }
 
-    // Emit real-time update
+    // Emit real-time update through multiple events for compatibility
     const io = req.app.get('io');
     if (io) {
+      console.log(`🔔 Emitting device update events for greenhouse-${device.greenhouseId}`);
+      
+      // Emit as deviceUpdate (original event)
       io.to(`greenhouse-${device.greenhouseId}`).emit('deviceUpdate', device);
+      
+      // Emit as deviceControlled (new event format)
       io.to(`greenhouse-${device.greenhouseId}`).emit('deviceControlled', {
         device: device,
         action: action,
         user: req.user.username,
         timestamp: new Date()
       });
+      
+      // Also emit as device-control-update (for older clients)
+      io.to(`greenhouse-${device.greenhouseId}`).emit('device-control-update', {
+        deviceId: device.deviceId,
+        action: newStatus,
+        timestamp: new Date()
+      });
+      
+      // Broadcast to all connected clients for maximum compatibility
+      io.emit('deviceUpdate', device);
     }
 
     res.json({

@@ -6,6 +6,7 @@ const rateLimit = require("express-rate-limit");
 const http = require("http");
 const socketIo = require("socket.io");
 require("dotenv").config();
+const  ConnecTDb = require("./Config/db")
 
 // Import routes
 const sensorRoutes = require("./routes/sensorRoutes");

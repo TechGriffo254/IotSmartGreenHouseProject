@@ -33,7 +33,7 @@ const socketHandler = (io) => {
 
     socket.on("device-control", (data) => {
       const { deviceId, action, greenhouseId } = data;
-      console.log(`🎛️ ${socket.username}: ${deviceId} -> ${action}`);
+      console.log(`${socket.username}: ${deviceId} -> ${action}`);
 
       io.to(`greenhouse-${greenhouseId}`).emit("deviceControl", {
         type: "deviceControl",
@@ -53,7 +53,7 @@ const socketHandler = (io) => {
     });
 
     socket.on("disconnect", (reason) => {
-      console.log(`🔌 Disconnected: ${socket.username} - ${reason}`);
+      console.log(` Disconnected: ${socket.username} - ${reason}`);
     });
   });
 };

@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const SensorData = require("../backend/models/SensorData");
-const DeviceControl = require("../backend/models/DeviceControl");
-const Alert = require("../backend/models/Alert");
+const SensorData = require("../models/SensorData");
+const DeviceControl = require("../models/DeviceControl");
+const Alert = require("../models/Alert");
 
 // POST /api/iot - Main endpoint for ESP32 to send combined sensor data
 router.post("/", async (req, res) => {

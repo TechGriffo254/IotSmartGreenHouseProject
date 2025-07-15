@@ -1,5 +1,5 @@
 const express = require("express");
-const router = express.Router();
+const Sensorrouter = express.Router();
 
 const {
   getLatestReadings,
@@ -12,9 +12,9 @@ const { auth } = require("../middleware/auth");
 const { validateSensorData } = require("../middleware/validation");
 
 // Routes
-router.get("/latest/:greenhouseId", auth, getLatestReadings);
-router.get("/historical/:greenhouseId", auth, getHistoricalData);
-router.post("/data", validateSensorData, postSensorData);
-router.get("/stats/:greenhouseId", auth, getSensorStats);
+Sensorrouter.get("/latest/:greenhouseId", auth, getLatestReadings);
+Sensorrouter.get("/historical/:greenhouseId", auth, getHistoricalData);
+Sensorrouter.post("/data", validateSensorData, postSensorData);
+Sensorrouter.get("/stats/:greenhouseId", auth, getSensorStats);
 
-module.exports = router;
+module.exports = Sensorrouter;

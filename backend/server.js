@@ -36,7 +36,7 @@ app.set("io", io);
 const PORT = process.env.PORT || 5000;
 app.listen(PORT,async (params) => {
   try {
-    await connectDb
+    await connectDb()
     console.log(`server running at loclhost ${PORT}`)
   } catch (error) {
     console.log("error connecting to the server",error)
